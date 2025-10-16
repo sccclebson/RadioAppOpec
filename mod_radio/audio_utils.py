@@ -1,57 +1,74 @@
 from datetime import datetime
 import os
 
-def listar_audios(radio_config, data=None, hora_ini=None, hora_fim=None):
+def parser_clube(nome_arquivo):
     """
-    Lista os arquivos de áudio usando a data/hora de criação real (ctime).
-    Suporta filtragem por data e hora.
+    Exemplo: 20251014000749.mp3 → 2025/10/14 00:07:49
     """
-    pasta_base = radio_config["pasta_base"]
+    base = os.path.splitext(nome_arquivo)[0]
+    try:
+        datahora = datetime.strptime(base, "%Y%m%d%H%M%S")
+        return datahora
+    except ValueError:
+        return None
+
+
+def parser_massa(nome_arquivo):
+    """
+    Exemplo: 01-0120.wav → dia=01, hora=01:20 (mês inferido pela pasta)
+    """
+    base = os.path.splitext(nome_arquivo)[0]
+    try:
+        dia, hora = base.split("-")
+        hora = hora.zfill(4)
+        hora_formatada = f"{hora[:2]}:{hora[2:]}"
+        return {"dia": dia, "hora": hora_formatada}
+    except Exception:
+        return None
+
+
+def listar_audios(radio_config, data=None):
+    """
+    Lista os arquivos de áudio usando a data/hora de CRIAÇÃO real (ctime).
+    """
+    caminho_base = radio_config["pasta_base"]
     extensao = radio_config["extensao"]
+    estrutura = radio_config["estrutura"]
+    parser = radio_config["parse_nome"]
+
     audios = []
 
-    if not os.path.exists(pasta_base):
-        return audios
+    # Define subpasta (por dia ou mês)
+    if estrutura == "diaria":
+        subpasta = data.strftime("%d-%m-%Y") if data else datetime.now().strftime("%d-%m-%Y")
+        pasta_dia = os.path.join(caminho_base, subpasta)
+    else:
+        subpasta = data.strftime("%B").lower() if data else datetime.now().strftime("%B").lower()
+        pasta_dia = os.path.join(caminho_base, subpasta)
 
-    for root, _, files in os.walk(pasta_base):
-        for nome in files:
-            if not nome.lower().endswith(extensao):
-                continue
+    if not os.path.exists(pasta_dia):
+        return []
 
-            caminho = os.path.join(root, nome)
-            try:
-                # 🕒 Data/hora de criação real
-                ctime = datetime.fromtimestamp(os.path.getctime(caminho))
-            except Exception:
-                continue
+    for arquivo in os.listdir(pasta_dia):
+        if not arquivo.lower().endswith(extensao):
+            continue
 
-            # 🎯 Filtro por data
-            if data and ctime.date() != data:
-                continue
+        caminho = os.path.join(pasta_dia, arquivo)
+        try:
+            # ⚙️ Usa a data/hora de criação real
+            datahora = datetime.fromtimestamp(os.path.getctime(caminho))
+        except Exception:
+            continue
 
-            # 🎯 Filtro por hora (opcional)
-            if hora_ini:
-                try:
-                    h_ini = datetime.strptime(hora_ini, "%H:%M").time()
-                    if ctime.time() < h_ini:
-                        continue
-                except ValueError:
-                    pass
-            if hora_fim:
-                try:
-                    h_fim = datetime.strptime(hora_fim, "%H:%M").time()
-                    if ctime.time() > h_fim:
-                        continue
-                except ValueError:
-                    pass
+        tamanho_kb = os.path.getsize(caminho) / 1024
+        datahora_str = datahora.strftime("%d/%m/%Y %H:%M:%S")
 
-            tamanho_kb = os.path.getsize(caminho) / 1024
-            audios.append({
-                "nome": nome,
-                "datahora": ctime.strftime("%d/%m/%Y %H:%M:%S"),
-                "tamanho": f"{tamanho_kb:,.0f} KB",
-                "caminho": caminho
-            })
+        audios.append({
+            "nome": arquivo,
+            "datahora": datahora_str,
+            "tamanho": f"{tamanho_kb:,.0f} KB",
+            "caminho": caminho
+        })
 
-    # 🔄 Ordena pelos mais recentes
+    # Ordena pelos mais recentes
     return sorted(audios, key=lambda x: x["datahora"], reverse=True)
