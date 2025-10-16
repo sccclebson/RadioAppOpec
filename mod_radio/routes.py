@@ -78,7 +78,13 @@ def selecionar_radio(radio_id):
         return redirect(url_for("radio.select_radio"))
 
     data_hoje = datetime.now().strftime("%Y-%m-%d")
-    return render_template("lista_audios.html", radio=radio, data_hoje=data_hoje)
+    return render_template(
+        "lista_audios.html",
+        radio=radio,
+        radio_key=radio_id,   # ✅ chave simples (sem acento, sem espaço)
+        data_hoje=data_hoje
+    )
+
 
 
 # ▶️ Reproduzir áudio
