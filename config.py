@@ -15,11 +15,11 @@ def primeiro_caminho_valido(caminhos):
 if "windows" in SISTEMA:
     PASTA_CLUBE = primeiro_caminho_valido([
         r"Z:\clube_fm",
-        r"\\10.14.0.42\clube fm",
+        r"\\10.14.0.42\clube fm"
     ])
     PASTA_MASSA = primeiro_caminho_valido([
         r"Y:\massa_fm",
-        r"\\10.14.0.42\massa fm",
+        r"\\10.14.0.42\massa fm"
     ])
 
 # 🐧 Configuração para Linux (montagens locais)

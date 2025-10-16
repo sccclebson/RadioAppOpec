@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const formFiltro = document.getElementById("formFiltro");
   const spinner = document.getElementById("spinner");
   const textFiltro = document.getElementById("textFiltro");
+  const radioKey = "{{ radio.id }}" || "{{ radio.nome|lower }}";  // ✅ identifica rádio atual
 
   async function carregarAudios(page = 1) {
     tabelaContainer.innerHTML = "<div class='text-center text-muted py-5'>Carregando áudios...</div>";
@@ -48,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const hora_ini = document.getElementById("filtroHoraIni").value;
     const hora_fim = document.getElementById("filtroHoraFim").value;
 
-    const url = `/radio/audios/data?data=${data}&hora_ini=${hora_ini}&hora_fim=${hora_fim}&page=${page}`;
+    const url = `/radio/audios/data?radio=${radioKey}&data=${data}&hora_ini=${hora_ini}&hora_fim=${hora_fim}&page=${page}`;
     const resp = await fetch(url);
     const dados = await resp.json();
 
