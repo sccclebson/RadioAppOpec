@@ -1,0 +1,36 @@
+{% extends "radio_base.html" %}
+{% block title %}Status de Cache{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-4">
+    🧠 Status do Cache de Áudios
+    <small class="text-muted">(atualiza a cada {{ intervalo }} min)</small>
+  </h3>
+
+  <table class="table table-striped table-bordered align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>Rádio</th>
+        <th>Arquivos em Cache</th>
+        <th>Última Atualização</th>
+        <th>Tempo Desde</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in status %}
+      <tr>
+        <td>{{ item.radio|capitalize }}</td>
+        <td>{{ item.arquivos }}</td>
+        <td>{{ item.ultima_atualizacao }}</td>
+        <td>{{ item.minutos_desde }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="text-muted small mt-3">
+    Esta página é apenas para uso interno e monitora o cache de listagem de áudios.
+  </p>
+</div>
+{% endblock %}

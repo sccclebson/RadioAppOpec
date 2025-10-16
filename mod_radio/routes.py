@@ -134,3 +134,30 @@ def recortar_download():
     except Exception as e:
         print(f"❌ Erro ao recortar: {e}")
         return "Erro ao processar o áudio", 500
+
+
+# 🧩 Rota oculta — Status do cache de áudios
+@bp_radio.route("/radio/cache/status")
+@login_required
+def status_cache():
+    """
+    Exibe o status atual do cache de áudios.
+    Apenas para uso interno/administrativo.
+    """
+    from mod_radio.audio_cache import CACHE_AUDIOS, CACHE_TIMESTAMP, CACHE_INTERVALO_MINUTOS
+    from datetime import datetime
+
+    agora = datetime.now()
+    status = []
+
+    for radio, audios in CACHE_AUDIOS.items():
+        ultima = CACHE_TIMESTAMP.get(radio)
+        minutos = ((agora - ultima).total_seconds() / 60) if ultima else None
+        status.append({
+            "radio": radio,
+            "arquivos": len(audios),
+            "ultima_atualizacao": ultima.strftime("%d/%m/%Y %H:%M:%S") if ultima else "—",
+            "minutos_desde": f"{minutos:.1f} min" if minutos else "Nunca",
+        })
+
+    return render_template("status_cache.html", status=status, intervalo=CACHE_INTERVALO_MINUTOS)
