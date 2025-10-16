@@ -136,28 +136,54 @@ def recortar_download():
         return "Erro ao processar o áudio", 500
 
 
-# 🧩 Rota oculta — Status do cache de áudios
+# 🧩 Rota oculta — Status e controle do cache
 @bp_radio.route("/radio/cache/status")
 @login_required
 def status_cache():
     """
-    Exibe o status atual do cache de áudios.
-    Apenas para uso interno/administrativo.
+    Exibe o status atual do cache de áudios e permite atualizar manualmente.
     """
-    from mod_radio.audio_cache import CACHE_AUDIOS, CACHE_TIMESTAMP, CACHE_INTERVALO_MINUTOS
+    from mod_radio.audio_cache import (
+        CACHE_AUDIOS, CACHE_TIMESTAMP, CACHE_INTERVALO_MINUTOS, atualizar_cache
+    )
     from datetime import datetime
 
     agora = datetime.now()
     status = []
 
-    for radio, audios in CACHE_AUDIOS.items():
+    for radio, cfg in RADIOS_CONFIG.items():
         ultima = CACHE_TIMESTAMP.get(radio)
         minutos = ((agora - ultima).total_seconds() / 60) if ultima else None
         status.append({
             "radio": radio,
-            "arquivos": len(audios),
-            "ultima_atualizacao": ultima.strftime("%d/%m/%Y %H:%M:%S") if ultima else "—",
-            "minutos_desde": f"{minutos:.1f} min" if minutos else "Nunca",
+            "nome": cfg["nome"],
+            "arquivos": len(CACHE_AUDIOS.get(radio, [])),
+            "ultima_atualizacao": ultima.strftime("%d/%m/%Y %H:%M:%S") if ultima else None,
+            "minutos_desde": f"{minutos:.1f} min" if minutos else "—",
         })
 
-    return render_template("status_cache.html", status=status, intervalo=CACHE_INTERVALO_MINUTOS)
+    return render_template(
+        "status_cache.html",
+        status=status,
+        intervalo=CACHE_INTERVALO_MINUTOS,
+    )
+
+
+# 🔄 Endpoint para forçar atualização manual
+@bp_radio.route("/radio/cache/atualizar/<radio_key>")
+@login_required
+def atualizar_cache_manual(radio_key):
+    """
+    Atualiza manualmente o cache de uma rádio e redireciona de volta ao painel.
+    """
+    from mod_radio.audio_cache import atualizar_cache
+    from flask import redirect, url_for, flash
+
+    if radio_key not in RADIOS_CONFIG:
+        flash("Rádio não encontrada.", "danger")
+        return redirect(url_for("radio.status_cache"))
+
+    flash(f"Atualizando cache de {RADIOS_CONFIG[radio_key]['nome']}...", "info")
+    atualizar_cache(radio_key)
+    flash(f"✅ Cache de {RADIOS_CONFIG[radio_key]['nome']} atualizado com sucesso!", "success")
+    return redirect(url_for("radio.status_cache"))
