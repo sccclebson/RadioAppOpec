@@ -6,6 +6,7 @@ from config import RADIOS_CONFIG
 from .audio_utils import listar_audios
 from pydub import AudioSegment
 import io
+from mod_radio.audio_cache import obter_cache
 
 bp_radio = Blueprint("radio", __name__, template_folder="templates")
 
@@ -41,7 +42,13 @@ def lista_audios():
             pass
 
     # 🔎 Busca com filtro
-    audios = listar_audios(radio_cfg, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
+    todos_audios = obter_cache(radio_key)
+    audios = [
+        a for a in todos_audios
+        if (not data or datetime.strptime(a["datahora"], "%d/%m/%Y %H:%M:%S").date() == data)
+        and (not hora_ini or hora_ini <= a["datahora"][-8:-3])
+        and (not hora_fim or hora_fim >= a["datahora"][-8:-3])
+    ]
     total = len(audios)
 
     # 🧮 Paginação

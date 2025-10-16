@@ -3,6 +3,9 @@ from flask import render_template
 from mod_radio.routes import bp_radio
 from mod_auth.routes import bp_auth
 from mod_admin.routes import bp_admin
+from mod_radio.audio_cache import iniciar_cache_automatico
+
+iniciar_cache_automatico(10)
 
 app = Flask(__name__)
 
