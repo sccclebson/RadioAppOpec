@@ -14,12 +14,10 @@ def primeiro_caminho_valido(caminhos):
 # 🪟 Configuração para Windows (mapas e compartilhamentos de rede)
 if "windows" in SISTEMA:
     PASTA_CLUBE = primeiro_caminho_valido([
-        r"Z:\clube_fm",
-        r"\\10.14.0.42\clube fm"
+        r"C:\PROJETOS\Radios\Clube"
     ])
     PASTA_MASSA = primeiro_caminho_valido([
-        r"Y:\massa_fm",
-        r"\\10.14.0.42\massa fm"
+        r"C:\PROJETOS\Radios\Massa"
     ])
 
 # 🐧 Configuração para Linux (montagens locais)
