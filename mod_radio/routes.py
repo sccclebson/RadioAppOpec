@@ -18,21 +18,21 @@ def select_radio():
     return render_template("select_radio.html", radios=RADIOS_CONFIG)
 
 
-# 📻 Lista de áudios (com filtros de data/hora)
 @bp_radio.route("/radio/audios/data")
 @login_required
 def lista_audios():
-    """Listar áudios de uma rádio específica (filtragem por data e hora)."""
+    """Listar áudios filtrados e paginados por data e hora."""
     data_str = request.args.get("data")
     hora_ini = request.args.get("hora_ini")
     hora_fim = request.args.get("hora_fim")
     page = int(request.args.get("page", 1))
-    radio_key = request.args.get("radio", "clube")  # padrão
+    radio_key = request.args.get("radio", "clube")
     radio_cfg = RADIOS_CONFIG.get(radio_key)
 
     if not radio_cfg:
         return jsonify({"erro": "Rádio não encontrada"}), 400
 
+    # Converte a data (se houver)
     data = None
     if data_str:
         try:
@@ -40,9 +40,12 @@ def lista_audios():
         except ValueError:
             pass
 
-    audios = listar_audios(radio_cfg, data=data)
+    # 🔎 Busca com filtro
+    audios = listar_audios(radio_cfg, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
     total = len(audios)
-    por_pagina = 25
+
+    # 🧮 Paginação
+    por_pagina = 20  # reduzido pra melhor performance
     inicio = (page - 1) * por_pagina
     fim = inicio + por_pagina
     pagina_audios = audios[inicio:fim]
@@ -52,7 +55,9 @@ def lista_audios():
         "audios": pagina_audios,
         "pagina_atual": page,
         "total_paginas": total_paginas,
+        "total_arquivos": total,
     })
+
 
 
 # 🎧 Exibir lista de áudios da rádio selecionada
