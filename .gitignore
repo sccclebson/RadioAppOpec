@@ -36,7 +36,6 @@ uploads/
 # =========================================
 # ⚙️ Configurações e segredos
 # =========================================
-config.py
 .env
 *.env
 secrets.json
