@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Painel Administrativo{% endblock %} - Sistema de Rádios</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Ícones -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+      overflow-x: hidden;
+    }
+
+    .navbar {
+      height: 56px;
+    }
+
+    .sidebar {
+      width: 250px;
+      height: 100vh;
+      background-color: #212529;
+      position: fixed;
+      top: 56px;
+      left: 0;
+      padding-top: 1rem;
+      overflow-y: auto;
+      transition: left 0.3s ease-in-out;
+    }
+
+    .sidebar a {
+      color: #adb5bd;
+      text-decoration: none;
+      display: block;
+      padding: 10px 20px;
+      font-size: 15px;
+    }
+
+
+    .sidebar a:hover,
+    .sidebar a.active {
+      background-color: #0d6efd;
+      color: white;
+      border-left: 4px solid #0dcaf0;
+    }
+
+    .content {
+      margin-left: 250px;
+      padding: 80px 30px 30px;
+      transition: margin-left 0.3s ease;
+    }
+
+    /* Responsivo - sidebar recolhe */
+    @media (max-width: 991px) {
+      .sidebar {
+        left: -250px;
+      }
+
+      .sidebar.show {
+        left: 0;
+      }
+
+      .content {
+        margin-left: 0;
+      }
+
+      .footer {
+        margin-left: 0;
+      }
+    }
+
+    .navbar-toggler {
+      border: none;
+      color: white;
+      font-size: 1.3rem;
+    }
+
+    .navbar-brand {
+      font-weight: bold;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #6c757d;
+      margin-top: 30px;
+
+    }
+  </style>
+</head>
+
+<body class="bg-light">
+  <!-- NAVBAR SUPERIOR -->
+  <nav class="navbar navbar-dark bg-dark fixed-top shadow-sm">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <button class="navbar-toggler d-lg-none" type="button" id="menu-toggle">
+        <i class="bi bi-list"></i>
+      </button>
+      <span class="navbar-brand mb-0 h5">
+        <i class="bi bi-speedometer2"></i> Painel Administrativo
+        <!-- <small class="text-secondary d-block fs-6">Gerenciamento de usuários e logins</small> -->
+      </span>
+      <div class="d-flex align-items-center">
+        <span class="text-white small me-3">
+          <i class="bi bi-person-circle"></i>
+          {% if session.user %}
+          {{ session.user.usuario }}
+          <span class="badge bg-{% if session.user.tipo == 'admin' %}primary{% else %}secondary{% endif %} ms-1">
+            {{ session.user.tipo|capitalize }}
+          </span>
+          {% endif %}
+        </span>
+        <a href="{{ url_for('radio.select_radio') }}" class="btn btn-outline-light btn-sm me-2">
+          <i class="bi bi-broadcast"></i> Rádios
+        </a>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm">
+          <i class="bi bi-box-arrow-right"></i> Sair
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MENU LATERAL -->
+  <div class="sidebar bg-dark" id="sidebar">
+    <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+      <i class="bi bi-house-door"></i> Dashboard
+    </a>
+    <a href="{{ url_for('admin.usuarios') }}" class="{% if request.endpoint == 'admin.usuarios' %}active{% endif %}">
+      <i class="bi bi-people"></i> Usuários
+    </a>
+    <a href="{{ url_for('admin.logins') }}" class="{% if request.endpoint == 'admin.logins' %}active{% endif %}">
+      <i class="bi bi-list-check"></i> Logins
+    </a>
+  </div>
+
+  <!-- CONTEÚDO -->
+  <div class="content">
+    {% block content %}
+    {% endblock %}
+    <footer>
+      <hr>
+      Sistema de Rádios — desenvolvido por Clebson Castilho
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const toggleButton = document.getElementById('menu-toggle');
+
+    if (toggleButton) {
+      toggleButton.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+      });
+    }
+  </script>
+</body>
+
+</html>

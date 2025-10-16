@@ -1,0 +1,65 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<h3>Dashboard</h3>
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+  <h3><i class="bi bi-speedometer2"></i> Painel Administrativo </h3>
+  <hr>
+  <div class="container py-4">
+    <h3 class="mb-4">🛠 Painel Administrativo</h3>
+
+    <div class="row text-center mb-4">
+      <div class="col-md-4">
+        <div class="card border-primary">
+          <div class="card-body">
+            <h5 class="text-primary">Usuários Locais</h5>
+            <h2>{{ total_usuarios }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-success">
+          <div class="card-body">
+            <h5 class="text-success">Logins LDAP</h5>
+            <h2>{{ total_ldap }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-info">
+          <div class="card-body">
+            <h5 class="text-info">Logins Locais</h5>
+            <h2>{{ total_local }}</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h5 class="mb-3">📋 Últimos logins</h5>
+    <table class="table table-sm table-striped">
+      <thead>
+        <tr>
+          <th>Usuário</th>
+          <th>Tipo</th>
+          <th>Data/Hora</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u, t, d, i in logs %}
+        <tr>
+          <td>{{ u }}</td>
+          <td>{{ t|capitalize }}</td>
+          <td>{{ d }}</td>
+          <td>{{ i or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

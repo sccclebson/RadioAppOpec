@@ -1,0 +1,26 @@
+{% extends "admin_base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-4">📄 Histórico de Logins</h3>
+  <table class="table table-striped table-sm align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th>Usuário</th>
+        <th>Tipo</th>
+        <th>Data/Hora</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u, t, d, i in logs %}
+      <tr>
+        <td>{{ u }}</td>
+        <td>{{ t }}</td>
+        <td>{{ d }}</td>
+        <td>{{ i or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

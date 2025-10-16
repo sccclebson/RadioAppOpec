@@ -1,0 +1,133 @@
+{% extends "radio_base.html" %}
+{% block title %}Listagem de Áudios{% endblock %}
+{% block content %}
+
+<div class="container py-4">
+  <h3 class="mb-4 text-center">
+    🎧 Áudios — <span class="text-primary">{{ radio.nome }}</span>
+  </h3>
+
+  <!-- 🔍 Filtros -->
+  <form id="formFiltro" class="row g-3 align-items-end mb-4">
+    <div class="col-md-3">
+      <label class="form-label fw-semibold">Data</label>
+      <input type="date" id="filtroData" name="data" class="form-control" value="{{ data_hoje }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label fw-semibold">Hora Início</label>
+      <input type="time" id="filtroHoraIni" name="hora_ini" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label fw-semibold">Hora Fim</label>
+      <input type="time" id="filtroHoraFim" name="hora_fim" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
+        <span id="spinner" class="spinner-border spinner-border-sm d-none"></span>
+        <span id="textFiltro">Filtrar</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- 🔊 Tabela -->
+  <div id="tabelaContainer" class="table-responsive">
+    <div class="text-center text-muted py-5">Carregando áudios...</div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const tabelaContainer = document.getElementById("tabelaContainer");
+  const formFiltro = document.getElementById("formFiltro");
+  const spinner = document.getElementById("spinner");
+  const textFiltro = document.getElementById("textFiltro");
+
+  async function carregarAudios(page = 1) {
+    tabelaContainer.innerHTML = "<div class='text-center text-muted py-5'>Carregando áudios...</div>";
+    const data = document.getElementById("filtroData").value;
+    const hora_ini = document.getElementById("filtroHoraIni").value;
+    const hora_fim = document.getElementById("filtroHoraFim").value;
+
+    const url = `/radio/audios/data?data=${data}&hora_ini=${hora_ini}&hora_fim=${hora_fim}&page=${page}`;
+    const resp = await fetch(url);
+    const dados = await resp.json();
+
+    if (!dados.audios || dados.audios.length === 0) {
+      tabelaContainer.innerHTML = "<p class='text-center text-muted py-5'>Nenhum áudio encontrado.</p>";
+      return;
+    }
+
+    let html = `
+      <table class="table table-hover align-middle text-center shadow-sm">
+        <thead class="table-dark">
+          <tr>
+            <th>Arquivo</th>
+            <th>Data/Hora</th>
+            <th>Tamanho</th>
+            <th>Ouvir</th>
+            <th>Recortar</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    for (const a of dados.audios) {
+      html += `
+        <tr>
+          <td class="fw-semibold">${a.nome}</td>
+          <td>${a.datahora}</td>
+          <td>${a.tamanho}</td>
+          <td style="min-width:210px;">
+            <audio controls preload="none" class="w-100 rounded">
+              <source src="/radio/play?path=${encodeURIComponent(a.caminho)}" type="audio/mpeg">
+            </audio>
+          </td>
+          <td>
+            <a href="/radio/recortar?path=${encodeURIComponent(a.caminho)}" class="btn btn-sm btn-outline-info">
+              ✂️ Recortar
+            </a>
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `</tbody></table><nav><ul class="pagination justify-content-center mt-3">`;
+
+    if (dados.pagina_atual > 1)
+      html += `<li class="page-item"><button class="page-link" data-page="${dados.pagina_atual - 1}">⬅️ Anterior</button></li>`;
+    else
+      html += `<li class="page-item disabled"><span class="page-link">⬅️ Anterior</span></li>`;
+
+    for (let i = 1; i <= dados.total_paginas; i++)
+      html += `<li class="page-item ${i === dados.pagina_atual ? "active" : ""}">
+                 <button class="page-link" data-page="${i}">${i}</button>
+               </li>`;
+
+    if (dados.pagina_atual < dados.total_paginas)
+      html += `<li class="page-item"><button class="page-link" data-page="${dados.pagina_atual + 1}">Próximo ➡️</button></li>`;
+    else
+      html += `<li class="page-item disabled"><span class="page-link">Próximo ➡️</span></li>`;
+
+    html += `</ul></nav>`;
+    tabelaContainer.innerHTML = html;
+
+    document.querySelectorAll(".page-link[data-page]").forEach(btn => {
+      btn.addEventListener("click", () => carregarAudios(btn.getAttribute("data-page")));
+    });
+  }
+
+  formFiltro.addEventListener("submit", e => {
+    e.preventDefault();
+    spinner.classList.remove("d-none");
+    textFiltro.textContent = "Filtrando...";
+    carregarAudios().then(() => {
+      spinner.classList.add("d-none");
+      textFiltro.textContent = "Filtrar";
+    });
+  });
+
+  carregarAudios();
+});
+</script>
+
+{% endblock %}

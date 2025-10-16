@@ -1,0 +1,68 @@
+# ---------------------------------------
+# 🐍 Arquivos e diretórios do Python
+# ---------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# ---------------------------------------
+# 📦 Ambientes virtuais
+# ---------------------------------------
+venv/
+ENV/
+env/
+.venv/
+
+# ---------------------------------------
+# 🗄️ Bancos de dados e variáveis locais
+# ---------------------------------------
+usuarios.db
+*.sqlite3
+*.db
+var/
+instance/
+uploads/
+*.log
+
+# ---------------------------------------
+# ⚙️ Configurações e senhas locais
+# ---------------------------------------
+config.py
+.env
+*.env
+
+# ---------------------------------------
+# 🧩 IDEs e ferramentas de desenvolvimento
+# ---------------------------------------
+.vscode/
+.idea/
+*.code-workspace
+
+# ---------------------------------------
+# 🚀 Sistema de cache e temporários
+# ---------------------------------------
+__cache__/
+.cache/
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---------------------------------------
+# 📊 Testes e arquivos auxiliares
+# ---------------------------------------
+test_*.py
+teste_*.py
+*.csv
+*.xlsx
+*.ods
+*.zip

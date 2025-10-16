@@ -1,0 +1,28 @@
+{% extends "radio_base.html" %}
+{% block title %}Seleção de Rádio{% endblock %}
+{% block content %}
+
+<div class="container py-4">
+  <h3 class="mb-4 text-center">
+    <i class="bi bi-broadcast-pin"></i> Selecione a Rádio
+  </h3>
+
+  <div class="row justify-content-center">
+    {% for key, radio in radios.items() %}
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm border-0 h-100">
+          <div class="card-body text-center">
+            <i class="bi bi-radio text-primary fs-1 mb-3"></i>
+            <h5 class="card-title fw-semibold">{{ radio.nome }}</h5>
+            <a href="{{ url_for('radio.selecionar_radio', radio_id=key) }}"
+               class="btn btn-primary mt-3 w-100">
+              <i class="bi bi-play-circle"></i> Acessar
+            </a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

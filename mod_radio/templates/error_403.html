@@ -1,0 +1,16 @@
+{% extends "base_error.html" %}
+{% block title %}Acesso Negado{% endblock %}
+{% block content %}
+  <h2 class="text-danger mb-3">
+    <i class="bi bi-shield-lock"></i> Acesso Negado
+  </h2>
+  <p class="text-muted mb-4">
+    Você não tem permissão para acessar esta área administrativa.
+  </p>
+  <a href="{{ url_for('radio.select_radio') }}" class="btn btn-primary w-100 mb-2">
+    <i class="bi bi-broadcast"></i> Voltar ao Painel de Rádios
+  </a>
+  <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger w-100">
+    <i class="bi bi-box-arrow-right"></i> Sair do Sistema
+  </a>
+{% endblock %}
