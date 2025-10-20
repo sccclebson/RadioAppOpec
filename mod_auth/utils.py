@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import current_app, session, redirect, url_for, flash, render_template
+from flask import current_app, session, redirect, url_for, flash, render_template,request
 
 def login_required(f):
     """Exige login de qualquer tipo de usuário (local ou LDAP)."""
@@ -19,7 +19,7 @@ def admin_required(f):
         user = session.get('user')
         if not user:
             flash("⚠️ Faça login para continuar.", "warning")
-            return redirect(url_for('auth.login'))
+            return redirect(url_for('auth.login', next=request.url))
 
         # 🚫 Se o usuário logado não for admin, mostra página 403
         if user.get('tipo') != 'admin':

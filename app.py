@@ -7,6 +7,7 @@ from mod_config import bp_config
 from mod_config.models import ConfigSistema
 from mod_radio.audio_cache import iniciar_cache_automatico
 
+
 # ============================================================
 # 🎛️ Criação da aplicação Flask
 # ============================================================

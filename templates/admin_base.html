@@ -130,9 +130,9 @@
     <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
       <i class="bi bi-house-door"></i> Dashboard
     </a>
-    <a href="{{ url_for('radio.status_cache') }}"
-      class="{% if request.endpoint == 'radio.status_cache' %}active{% endif %}">
-      <i class="bi bi-house-door"></i> Cache
+    <a href="{{ url_for('admin.status_cache') }}"
+      class="{% if request.endpoint == 'admin.status_cache' %}active{% endif %}">
+      <i class="bi bi-brain"></i> Status do Cache
     </a>
     <a href="{{ url_for('admin.usuarios') }}" class="{% if request.endpoint == 'admin.usuarios' %}active{% endif %}">
       <i class="bi bi-people"></i> Usuários

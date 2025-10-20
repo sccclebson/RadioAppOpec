@@ -1,6 +1,11 @@
 # mod_admin/routes.py
 from flask import Blueprint, render_template, session, redirect, url_for, request, flash
 from .models import listar_logins, listar_usuarios, contar_usuarios, contar_logins, get_connection
+from .models import obter_usuario_por_id, criar_usuario, atualizar_usuario, excluir_usuario
+from werkzeug.security import generate_password_hash
+
+
+
 from mod_auth.utils import admin_required
 
 bp_admin = Blueprint('admin', __name__, template_folder='templates')
@@ -53,11 +58,6 @@ def logins():
 
 
 
-from werkzeug.security import generate_password_hash
-from .models import (
-    listar_usuarios, obter_usuario_por_id, criar_usuario, atualizar_usuario, excluir_usuario
-)
-
 # ➕ Novo usuário
 @bp_admin.route('/admin/usuarios/novo', methods=['GET', 'POST'])
 @admin_required
@@ -104,3 +104,37 @@ def excluir_usuario_route(user_id):
     excluir_usuario(user_id)
     flash('Usuário excluído com sucesso!', 'info')
     return redirect(url_for('admin.usuarios'))
+
+
+# -------------------------------------------------------------------------
+# 🧠 STATUS DO CACHE DE ÁUDIOS
+# -------------------------------------------------------------------------
+from mod_radio.audio_cache import CACHE_AUDIOS, CACHE_TIMESTAMP, CACHE_INTERVALO_MINUTOS
+from mod_config.models import carregar_radios_config
+from datetime import datetime
+
+@bp_admin.route('/admin/status-cache')
+@admin_required
+def status_cache():
+    """Exibe o status atual do cache de áudios (para administradores)."""
+    radios_cfg = carregar_radios_config()
+    agora = datetime.now()
+
+    status = []
+    for radio_key, cfg in radios_cfg.items():
+        ultima = CACHE_TIMESTAMP.get(radio_key)
+        minutos_desde = int((agora - ultima).total_seconds() / 60) if ultima else "—"
+        qtd = len(CACHE_AUDIOS.get(radio_key, []))
+        status.append({
+            "radio": radio_key,
+            "nome": cfg["nome"],
+            "arquivos": qtd,
+            "ultima_atualizacao": ultima.strftime("%d/%m/%Y %H:%M:%S") if ultima else None,
+            "minutos_desde": minutos_desde,
+        })
+
+    return render_template(
+        'status_cache.html',
+        status=status,
+        intervalo=CACHE_INTERVALO_MINUTOS
+    )

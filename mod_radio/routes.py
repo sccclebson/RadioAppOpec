@@ -232,3 +232,27 @@ def recortar_audio(radio_key):
     except Exception as e:
         flash(f"Erro ao recortar: {e}", "danger")
         return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
+
+
+
+
+# ============================================================
+# 🔄 Atualização manual de cache (usada pelo painel admin)
+# ============================================================
+from flask import redirect, url_for, flash
+from mod_radio.audio_cache import atualizar_cache
+from mod_auth.utils import admin_required
+
+@bp_radio.route('/radio/<radio_key>/atualizar-cache')
+@admin_required
+def atualizar_cache_manual(radio_key):
+    """Força a atualização do cache de uma rádio específica."""
+    try:
+        atualizar_cache(radio_key)
+        flash(f"Cache da rádio '{radio_key}' atualizado com sucesso.", "success")
+        print(f"🔄 [ADMIN] Cache manual solicitado por admin para {radio_key}")
+
+    except Exception as e:
+        flash(f"Erro ao atualizar cache da rádio '{radio_key}': {e}", "danger")
+
+    return redirect(url_for('admin.status_cache'))

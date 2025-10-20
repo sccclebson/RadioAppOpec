@@ -3,156 +3,98 @@
 
 {% block content %}
 <div class="container py-4">
-  <h3 class="mb-4">
-    <i class="bi bi-scissors"></i> Recortar Áudio
-  </h3>
+  <h4 class="mb-4"><i class="bi bi-scissors"></i> Recortar Áudio</h4>
 
   <div class="card shadow-sm mb-4">
     <div class="card-body">
-      <h5 class="card-title text-primary">{{ radio.nome }}</h5>
-      <p class="mb-1"><strong>Arquivo:</strong> {{ (path | replace('\\','/')).split('/')[-1] }}</p>
-      <p class="text-muted small mb-0"><strong>Caminho completo:</strong> {{ path }}</p>
+      <h5 class="card-title">Rádio {{ radio.nome }}</h5>
+      <p><strong>Arquivo:</strong> {{ nome_arquivo }}</p>
+      <p><strong>Caminho completo:</strong> {{ path }}</p>
     </div>
   </div>
 
+  <!-- Player de áudio -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
-      <div id="waveform" class="mb-3" style="height: 140px;"></div>
-      <div class="d-flex gap-2 flex-wrap">
-        <button id="btnPlay" class="btn btn-primary"><i class="bi bi-play-fill"></i> Reproduzir / Pausar</button>
-        <button id="btnStop" class="btn btn-outline-secondary"><i class="bi bi-stop-fill"></i> Parar</button>
-        <button id="btnZoomIn" class="btn btn-outline-info"><i class="bi bi-zoom-in"></i> Zoom +</button>
-        <button id="btnZoomOut" class="btn btn-outline-info"><i class="bi bi-zoom-out"></i> Zoom -</button>
+      <div id="waveform"></div>
+      <div class="mt-3 text-center">
+        <button id="btnPlay" class="btn btn-primary me-2">
+          <i class="bi bi-play-circle"></i> Reproduzir / Pausar
+        </button>
+        <button id="btnStop" class="btn btn-secondary me-2">
+          <i class="bi bi-stop-circle"></i> Parar
+        </button>
+        <button id="btnZoomIn" class="btn btn-outline-primary me-2">🔍 Zoom +</button>
+        <button id="btnZoomOut" class="btn btn-outline-primary">🔍 Zoom -</button>
       </div>
-      <div id="tempoInfo" class="text-muted mt-2 small"></div>
     </div>
   </div>
 
-  <form id="formRecorte" method="post" action="{{ url_for('radio.recortar_audio', radio_key=radio.key) }}">
+  <!-- Formulário de recorte -->
+  <form id="formRecorte" method="POST"
+        action="{{ url_for('radio.recortar_audio', radio_key=radio.key) }}"
+        class="card shadow-sm p-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label for="inicio" class="form-label">Início (mm:ss)</label>
+        <input type="text" id="inicio" name="inicio" class="form-control" value="00:00" required>
+      </div>
+      <div class="col-md-4">
+        <label for="fim" class="form-label">Fim (mm:ss)</label>
+        <input type="text" id="fim" name="fim" class="form-control" value="00:30" required>
+      </div>
+      <div class="col-md-4 text-end">
+        <button type="submit" class="btn btn-success">
+          <i class="bi bi-scissors"></i> Recortar e Baixar
+        </button>
+      </div>
+    </div>
+
     <input type="hidden" name="path" value="{{ path }}">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <div class="row g-3 align-items-center">
-          <div class="col-md-4">
-            <label for="inicio" class="form-label">Início (mm:ss)</label>
-            <input type="text" class="form-control" id="inicio" name="inicio" value="00:00">
-          </div>
-          <div class="col-md-4">
-            <label for="fim" class="form-label">Fim (mm:ss)</label>
-            <input type="text" class="form-control" id="fim" name="fim" value="00:30">
-          </div>
-          <div class="col-md-4 d-grid">
-            <button type="submit" class="btn btn-success mt-4">
-              <i class="bi bi-download"></i> Recortar e Baixar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <input type="hidden" name="nome_arquivo" value="{{ nome_arquivo }}">
   </form>
 </div>
-{% endblock %}
+
+<!-- WaveSurfer.js -->
+<script src="https://unpkg.com/wavesurfer.js@7.0.3/dist/wavesurfer.min.js"></script>
+<script src="https://unpkg.com/wavesurfer.js@7.0.3/dist/plugins/regions.min.js"></script>
 
 {% block scripts %}
-<script src="https://unpkg.com/wavesurfer.js@7.8.3/dist/wavesurfer.min.js"></script>
-<script src="https://unpkg.com/wavesurfer.js@7.8.3/dist/plugins/regions.min.js"></script>
-
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
+  // Caminho absoluto do arquivo recebido do Flask
   const rawPath = "{{ path | replace('\\', '/') }}";
-  const baseURL = window.location.origin; // força caminho absoluto
-  const playURL = `${baseURL}{{ url_for('radio.play_audio') }}?path=${encodeURIComponent(rawPath)}`;
+  const playURL = "/radio/play?path=" + encodeURIComponent(rawPath);
 
   console.log("🎧 Caminho original:", rawPath);
   console.log("🎧 URL final de reprodução:", playURL);
 
+  // Criação do WaveSurfer
   const wavesurfer = WaveSurfer.create({
     container: "#waveform",
     waveColor: "#cce5ff",
     progressColor: "#007bff",
-    cursorColor: "#dc3545",
-    barWidth: 2,
-    height: 120,
-    responsive: true,
+    height: 100,
   });
 
-  const regionsPlugin = WaveSurfer.regions.create();
-  wavesurfer.registerPlugin(regionsPlugin);
+  // Controles de reprodução
+  const btnPlay = document.getElementById("btnPlay");
+  const btnStop = document.getElementById("btnStop");
+  const btnZoomIn = document.getElementById("btnZoomIn");
+  const btnZoomOut = document.getElementById("btnZoomOut");
 
-  let currentRegion = null;
-  let zoomLevel = 0;
+  btnPlay.addEventListener("click", () => wavesurfer.playPause());
+  btnStop.addEventListener("click", () => wavesurfer.stop());
+  btnZoomIn.addEventListener("click", () => wavesurfer.zoom(wavesurfer.params.minPxPerSec * 1.2));
+  btnZoomOut.addEventListener("click", () => wavesurfer.zoom(wavesurfer.params.minPxPerSec / 1.2));
 
   try {
     await wavesurfer.load(playURL);
     console.log("✅ Áudio carregado com sucesso!");
-    regionsPlugin.enableDragSelection({ color: "rgba(0,123,255,0.3)" });
   } catch (err) {
     console.error("❌ Erro ao carregar o áudio:", err);
-    showAlert("Erro ao carregar o áudio.", "danger");
-  }
-
-  const inputInicio = document.getElementById("inicio");
-  const inputFim = document.getElementById("fim");
-  const tempoInfo = document.getElementById("tempoInfo");
-
-  regionsPlugin.on("region-created", region => {
-    if (currentRegion) currentRegion.remove();
-    currentRegion = region;
-    updateInputs(region);
-  });
-
-  regionsPlugin.on("region-updated", region => updateInputs(region));
-
-  function updateInputs(region) {
-    inputInicio.value = formatTime(region.start);
-    inputFim.value = formatTime(region.end);
-  }
-
-  document.getElementById("btnPlay").addEventListener("click", () => wavesurfer.playPause());
-  document.getElementById("btnStop").addEventListener("click", () => wavesurfer.stop());
-  document.getElementById("btnZoomIn").addEventListener("click", () => { zoomLevel += 10; wavesurfer.zoom(zoomLevel); });
-  document.getElementById("btnZoomOut").addEventListener("click", () => { zoomLevel = Math.max(0, zoomLevel - 10); wavesurfer.zoom(zoomLevel); });
-
-  wavesurfer.on("audioprocess", () => {
-    const pos = wavesurfer.getCurrentTime();
-    tempoInfo.innerText = `⏱ ${formatTime(pos)} / ${formatTime(wavesurfer.getDuration())}`;
-  });
-
-  document.getElementById("formRecorte").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    showAlert("Gerando recorte...", "info");
-
-    try {
-      const resp = await fetch(e.target.action, { method: "POST", body: formData });
-      if (!resp.ok) throw new Error("Erro no servidor");
-
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "recorte.mp3";
-      a.click();
-      showAlert("✅ Recorte gerado com sucesso!", "success");
-    } catch (err) {
-      console.error(err);
-      showAlert("❌ Falha ao gerar recorte.", "danger");
-    }
-  });
-
-  function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
-
-  function showAlert(msg, type="primary") {
-    const alert = document.createElement("div");
-    alert.className = `alert alert-${type} mt-3`;
-    alert.textContent = msg;
-    document.querySelector(".container").prepend(alert);
-    setTimeout(() => alert.remove(), 4000);
   }
 });
 </script>
+{% endblock %}
 {% endblock %}
