@@ -1,4 +1,6 @@
 {% extends "radio_base.html" %}
+{% set radio_key = radio.key %}
+
 {% block title %}Listagem de Áudios{% endblock %}
 {% block content %}
 
@@ -85,8 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </audio>
           </td>
           <td>
-            <a href="/radio/recortar?path=${encodeURIComponent(a.caminho)}" class="btn btn-sm btn-outline-info">
-              ✂️ Recortar
+            <a href="/radio/{{ radio.key }}/recortar?path=${encodeURIComponent(a.caminho)}" class="btn btn-sm btn-outline-info">✂️ Recortar</a>
             </a>
           </td>
         </tr>

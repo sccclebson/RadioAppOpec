@@ -130,7 +130,8 @@
     <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
       <i class="bi bi-house-door"></i> Dashboard
     </a>
-        <a href="{{ url_for('radio.status_cache') }}" class="{% if request.endpoint == 'radio.status_cache' %}active{% endif %}">
+    <a href="{{ url_for('radio.status_cache') }}"
+      class="{% if request.endpoint == 'radio.status_cache' %}active{% endif %}">
       <i class="bi bi-house-door"></i> Cache
     </a>
     <a href="{{ url_for('admin.usuarios') }}" class="{% if request.endpoint == 'admin.usuarios' %}active{% endif %}">
@@ -139,6 +140,12 @@
     <a href="{{ url_for('admin.logins') }}" class="{% if request.endpoint == 'admin.logins' %}active{% endif %}">
       <i class="bi bi-list-check"></i> Logins
     </a>
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('bp_config.dashboard') }}">
+        <i class="bi bi-gear"></i> Configurações
+      </a>
+    </li>
+
   </div>
 
   <!-- CONTEÚDO -->

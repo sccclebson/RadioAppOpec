@@ -1,0 +1,12 @@
+{% extends "admin_base.html" %}
+{% block title %}Configurações{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h3>Configurações</h3>
+  <div class="list-group">
+    <a class="list-group-item list-group-item-action" href="{{ url_for('bp_config.config_sistema') }}">Sistema</a>
+    <a class="list-group-item list-group-item-action" href="{{ url_for('bp_config.config_ldap') }}">LDAP</a>
+    <a class="list-group-item list-group-item-action" href="{{ url_for('bp_config.radios') }}">Rádios</a>
+  </div>
+</div>
+{% endblock %}

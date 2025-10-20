@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+{% block title %}Config - LDAP{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h4>Configuração LDAP</h4>
+  <form method="post" class="mb-3">
+    <div class="row g-3">
+      <div class="col-md-4"><label class="form-label">Servidor</label><input name="servidor" class="form-control" value="{{ ldap.servidor if ldap else '' }}" required></div>
+      <div class="col-md-2"><label class="form-label">Porta</label><input name="porta" type="number" class="form-control" value="{{ ldap.porta if ldap else 389 }}" required></div>
+      <div class="col-md-3"><label class="form-label">Domínio</label><input name="dominio" class="form-control" value="{{ ldap.dominio if ldap else '' }}" required></div>
+      <div class="col-md-3"><label class="form-label">Base de Usuários</label><input name="usuario_base" class="form-control" value="{{ ldap.usuario_base if ldap else '' }}" required></div>
+
+      <div class="col-md-4"><label class="form-label">Usuário (Bind)</label><input name="usuario_bind" class="form-control" value="{{ ldap.usuario_bind if ldap else '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Senha (Bind)</label><input name="senha_bind" type="password" class="form-control" value="{{ ldap.senha_bind if ldap else '' }}"></div>
+      <div class="col-md-2 form-check mt-4 ms-2">
+        <input class="form-check-input" type="checkbox" name="usar_ssl" {% if ldap and ldap.usar_ssl %}checked{% endif %}>
+        <label class="form-check-label">Usar SSL</label>
+      </div>
+      <div class="col-md-2"><label class="form-label">Timeout (s)</label><input name="timeout" type="number" class="form-control" value="{{ ldap.timeout if ldap else 5 }}" required></div>
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="ativo" {% if ldap and ldap.status=='ativo' %}selected{% endif %}>Ativo</option>
+          <option value="inativo" {% if ldap and ldap.status=='inativo' %}selected{% endif %}>Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="mt-3">
+      <button class="btn btn-primary">Salvar</button>
+      <button type="button" id="btnTestar" class="btn btn-outline-secondary">Testar conexão</button>
+      <span id="ldapMsg" class="ms-2"></span>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('btnTestar')?.addEventListener('click', async () => {
+  const form = new FormData(document.querySelector('form'));
+  const r = await fetch('{{ url_for("bp_config.ldap_test") }}', { method: 'POST', body: form });
+  const data = await r.json();
+  const el = document.getElementById('ldapMsg');
+  el.textContent = data.mensagem;
+  el.className = data.ok ? 'text-success' : 'text-danger';
+});
+</script>
+{% endblock %}

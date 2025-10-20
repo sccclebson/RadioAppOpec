@@ -2,6 +2,7 @@
 import threading
 import time
 from datetime import datetime
+from mod_config.models import carregar_radios_config
 from mod_radio.audio_utils import listar_audios
 from config import RADIOS_CONFIG
 
@@ -11,15 +12,23 @@ CACHE_TIMESTAMP = {}
 CACHE_INTERVALO_MINUTOS = 10  # tempo de atualização automática
 
 def atualizar_cache(radio_key):
-    """Atualiza o cache de uma rádio específica."""
-    radio_cfg = RADIOS_CONFIG.get(radio_key)
-    if not radio_cfg:
-        return
-
+    """Atualiza o cache de uma rádio específica, com validação de caminho."""
     try:
+        # Carrega a configuração atualizada das rádios
+        radios_cfg = carregar_radios_config()
+        radio_cfg = radios_cfg.get(radio_key)
+
+        # Se não houver configuração ou pasta inválida, ignora
+        if not radio_cfg or not radio_cfg.get("pasta_base"):
+            print(f"⚠️ [CACHE] Rádio '{radio_key}' sem pasta_base definida. Ignorando atualização.")
+            return
+
         print(f"🔄 Atualizando cache de {radio_cfg['nome']}...")
+
+        # Lista e armazena os áudios
         CACHE_AUDIOS[radio_key] = listar_audios(radio_cfg)
         CACHE_TIMESTAMP[radio_key] = datetime.now()
+
         print(f"✅ Cache atualizado ({len(CACHE_AUDIOS[radio_key])} arquivos)")
     except Exception as e:
         print(f"❌ Erro ao atualizar cache da rádio {radio_key}: {e}")

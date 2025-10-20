@@ -1,39 +1,111 @@
-from flask import Blueprint, render_template, request, jsonify, send_file, redirect, url_for, flash
+from flask import (
+    Blueprint, render_template, request, jsonify,
+    send_file, redirect, url_for, flash, abort, Response
+)
 from datetime import datetime
 import os
-from mod_auth.utils import login_required
-from config import RADIOS_CONFIG
-from .audio_utils import listar_audios
-from pydub import AudioSegment
 import io
-from mod_radio.audio_cache import obter_cache
+from pydub import AudioSegment
+
+from mod_auth.utils import login_required
+from .audio_utils import listar_audios
+from mod_radio.audio_cache import obter_cache, atualizar_cache
+from mod_config.models import carregar_radios_config, ConfigSistema
 
 bp_radio = Blueprint("radio", __name__, template_folder="templates")
 
+# -------------------------------------------------------------------------
+# HELPERS
+# -------------------------------------------------------------------------
+def get_radios_config():
+    """Carrega o dicionário de rádios a partir da configuração."""
+    return carregar_radios_config()
 
-# 🎙️ Selecionar rádio
-@bp_radio.route("/radio")
+
+def _is_subpath(path, base):
+    """Garante que o arquivo pertence à pasta base da rádio (segurança)."""
+    try:
+        path = os.path.realpath(path)
+        base = os.path.realpath(base)
+        return os.path.commonpath([path, base]) == base
+    except Exception:
+        return False
+
+
+# -------------------------------------------------------------------------
+# SELECIONAR RÁDIO
+# -------------------------------------------------------------------------
+@bp_radio.route('/radio')
 @login_required
 def select_radio():
-    """Tela inicial: seleção de rádios disponíveis."""
-    return render_template("select_radio.html", radios=RADIOS_CONFIG)
+    radios_cfg = get_radios_config()
+    return render_template('select_radio.html', radios=radios_cfg)
 
 
-@bp_radio.route("/radio/audios/data")
+# -------------------------------------------------------------------------
+# LISTAR ÁUDIOS
+# -------------------------------------------------------------------------
+@bp_radio.route('/radio/<radio_key>')
 @login_required
-def lista_audios():
-    """Listar áudios filtrados e paginados por data e hora."""
-    data_str = request.args.get("data")
-    hora_ini = request.args.get("hora_ini")
-    hora_fim = request.args.get("hora_fim")
-    page = int(request.args.get("page", 1))
-    radio_key = request.args.get("radio", "clube")
-    radio_cfg = RADIOS_CONFIG.get(radio_key)
+def selecionar_radio(radio_key):
+    radios_cfg = get_radios_config()
+    radio = radios_cfg.get(radio_key)
+    if not radio:
+        flash("Rádio não encontrada.", "danger")
+        return redirect(url_for('radio.select_radio'))
 
-    if not radio_cfg:
-        return jsonify({"erro": "Rádio não encontrada"}), 400
+    data_str = request.args.get('data')
+    hora_ini = request.args.get('hora_ini')
+    hora_fim = request.args.get('hora_fim')
+    page = int(request.args.get('page', 1))
 
-    # Converte a data (se houver)
+    data = None
+    if data_str:
+        try:
+            data = datetime.strptime(data_str, "%Y-%m-%d").date()
+        except ValueError:
+            data = None
+
+    todos_audios = obter_cache(radio_key)
+    if not todos_audios:
+        todos_audios = listar_audios(radio, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
+
+    por_pagina = int(ConfigSistema.get().get('max_por_pagina', 20))
+    por_pagina = max(1, min(100, por_pagina))
+    total = len(todos_audios)
+    inicio = (page - 1) * por_pagina
+    fim = inicio + por_pagina
+    pagina_audios = todos_audios[inicio:fim]
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+
+    return render_template(
+        'lista_audios.html',
+        radio={'key': radio_key, **radio},
+        audios=pagina_audios,
+        pagina_atual=page,
+        total_paginas=total_paginas,
+        total=total,
+        filtros={'data': data_str or '', 'hora_ini': hora_ini or '', 'hora_fim': hora_fim or ''}
+    )
+
+
+# -------------------------------------------------------------------------
+# API JSON - LISTAR ÁUDIOS (usado na tela lista_audios.html via fetch)
+# -------------------------------------------------------------------------
+@bp_radio.route('/radio/audios/data')
+@login_required
+def api_listar_audios():
+    radio_key = request.args.get('radio')
+    data_str = request.args.get('data')
+    hora_ini = request.args.get('hora_ini')
+    hora_fim = request.args.get('hora_fim')
+    page = int(request.args.get('page', 1))
+
+    radios_cfg = get_radios_config()
+    radio = radios_cfg.get(radio_key)
+    if not radio:
+        return jsonify({"error": "Rádio não encontrada."}), 404
+
     data = None
     if data_str:
         try:
@@ -41,155 +113,122 @@ def lista_audios():
         except ValueError:
             pass
 
-    # 🔎 Busca com filtro
-    todos_audios = obter_cache(radio_key)
-    audios = [
-        a for a in todos_audios
-        if (not data or datetime.strptime(a["datahora"], "%d/%m/%Y %H:%M:%S").date() == data)
-        and (not hora_ini or hora_ini <= a["datahora"][-8:-3])
-        and (not hora_fim or hora_fim >= a["datahora"][-8:-3])
-    ]
-    total = len(audios)
+    todos_audios = listar_audios(radio, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
 
-    # 🧮 Paginação
-    por_pagina = 20  # reduzido pra melhor performance
+    por_pagina = int(ConfigSistema.get().get('max_por_pagina', 20))
+    por_pagina = max(1, min(100, por_pagina))
+    total = len(todos_audios)
     inicio = (page - 1) * por_pagina
     fim = inicio + por_pagina
-    pagina_audios = audios[inicio:fim]
+    pagina_audios = todos_audios[inicio:fim]
     total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
 
     return jsonify({
-        "audios": pagina_audios,
         "pagina_atual": page,
         "total_paginas": total_paginas,
-        "total_arquivos": total,
+        "total": total,
+        "audios": pagina_audios
     })
 
 
+# -------------------------------------------------------------------------
+# STREAM / PLAYER DE ÁUDIO (para WaveSurfer)
+# -------------------------------------------------------------------------
+@bp_radio.route("/radio/play")
+def play_audio():
+    """Serve o áudio MP3/WAV para o WaveSurfer.js com suporte a streaming parcial."""
+    print("\n====================== DEBUG /radio/play ======================")
+    print(f"🔹 request.url = {request.url}")
+    print(f"🔹 request.args = {dict(request.args)}")
 
-# 🎧 Exibir lista de áudios da rádio selecionada
-@bp_radio.route("/radio/<radio_id>")
+    caminho_raw = request.args.get("path")
+    if not caminho_raw:
+        return "Caminho inválido", 400
+
+    caminho_abs = os.path.abspath(caminho_raw)
+    print(f"📂 Caminho final resolvido: {caminho_abs}")
+
+    if not os.path.isfile(caminho_abs):
+        print(f"❌ Arquivo não encontrado: {caminho_abs}")
+        return f"Arquivo não encontrado: {caminho_abs}", 404
+
+    file_size = os.path.getsize(caminho_abs)
+    range_header = request.headers.get("Range", None)
+
+    def generate(file_path, start, length):
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            yield f.read(length)
+
+    if range_header:
+        # Exemplo: bytes=0-1023
+        byte_range = range_header.replace("bytes=", "").split("-")
+        start = int(byte_range[0])
+        end = int(byte_range[1]) if byte_range[1] else file_size - 1
+        length = end - start + 1
+        print(f"📦 Enviando range: {start}-{end}/{file_size}")
+        resp = Response(generate(caminho_abs, start, length), status=206, mimetype="audio/mpeg")
+        resp.headers.add("Content-Range", f"bytes {start}-{end}/{file_size}")
+        resp.headers.add("Accept-Ranges", "bytes")
+        resp.headers.add("Content-Length", str(length))
+    else:
+        resp = send_file(caminho_abs, mimetype="audio/mpeg", conditional=True)
+
+    resp.headers.add("Cache-Control", "no-store")
+    resp.headers.add("Access-Control-Allow-Origin", "*")
+
+    print("✅ [PLAY] Enviando áudio para WaveSurfer com suporte a streaming.")
+    print("===============================================================\n")
+    return resp
+
+
+# -------------------------------------------------------------------------
+# RECORTE DE ÁUDIO
+# -------------------------------------------------------------------------
+@bp_radio.route('/radio/<radio_key>/recortar', methods=['GET', 'POST'])
 @login_required
-def selecionar_radio(radio_id):
-    """Abre a página de listagem da rádio específica."""
-    radio = RADIOS_CONFIG.get(radio_id)
+def recortar_audio(radio_key):
+    radios_cfg = get_radios_config()
+    radio = radios_cfg.get(radio_key)
     if not radio:
         flash("Rádio não encontrada.", "danger")
-        return redirect(url_for("radio.select_radio"))
+        return redirect(url_for('radio.select_radio'))
 
-    data_hoje = datetime.now().strftime("%Y-%m-%d")
-    return render_template(
-        "lista_audios.html",
-        radio=radio,
-        radio_key=radio_id,   # ✅ chave simples (sem acento, sem espaço)
-        data_hoje=data_hoje
-    )
+    # GET → exibe tela de recorte
+    if request.method == 'GET':
+        caminho = request.args.get('path', '')
+        if not caminho or not os.path.isfile(caminho):
+            flash("Arquivo inválido.", "danger")
+            return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
+        return render_template('recortar_audio.html', radio={'key': radio_key, **radio}, path=caminho)
 
+    # POST → realiza o recorte
+    caminho = request.form.get('path')
+    ini = request.form.get('inicio', '00:00')
+    fim = request.form.get('fim', '00:30')
 
+    if not caminho or not os.path.isfile(caminho):
+        abort(403)
 
-# ▶️ Reproduzir áudio
-@bp_radio.route("/radio/play")
-@login_required
-def play_audio():
-    path = request.args.get("path")
-    if not path or not os.path.exists(path):
-        return "Arquivo não encontrado", 404
-    return send_file(path, mimetype="audio/mpeg")
-
-
-# ✂️ Tela de recorte de áudio
-@bp_radio.route("/radio/recortar")
-@login_required
-def recortar_audio():
-    path = request.args.get("path")
-    if not path or not os.path.exists(path):
-        flash("Arquivo não encontrado.", "danger")
-        return redirect(url_for("radio.select_radio"))
-
-    nome_arquivo = os.path.basename(path)
-    return render_template("recortar_audio.html", path=path, nome_arquivo=nome_arquivo)
-
-
-# 💾 Gera e faz download do recorte
-@bp_radio.route("/radio/recortar/download", methods=["POST"])
-@login_required
-def recortar_download():
-    path = request.form.get("path")
-    inicio = float(request.form.get("inicio", 0))
-    fim = float(request.form.get("fim", 10))
-
-    if not path or not os.path.exists(path):
-        return "Arquivo não encontrado", 404
+    def to_ms(hhmmss):
+        parts = [int(p) for p in hhmmss.split(':')]
+        if len(parts) == 2:
+            m, s = parts
+            return (m * 60 + s) * 1000
+        elif len(parts) == 3:
+            h, m, s = parts
+            return (h * 3600 + m * 60 + s) * 1000
+        return 0
 
     try:
-        audio = AudioSegment.from_file(path)
-        trecho = audio[inicio * 1000:fim * 1000]
-
-        buffer = io.BytesIO()
-        trecho.export(buffer, format="mp3")
-        buffer.seek(0)
-
-        nome_saida = f"recorte_{os.path.basename(path)}"
-        return send_file(
-            buffer,
-            mimetype="audio/mpeg",
-            as_attachment=True,
-            download_name=nome_saida
-        )
-
+        audio = AudioSegment.from_file(caminho)
+        cut = audio[to_ms(ini):to_ms(fim)]
+        buf = io.BytesIO()
+        cut.export(buf, format="mp3")
+        buf.seek(0)
+        filename = os.path.basename(caminho)
+        saida = f"recorte_{ini.replace(':','')}-{fim.replace(':','')}_{filename}"
+        return send_file(buf, as_attachment=True, download_name=saida, mimetype="audio/mpeg")
     except Exception as e:
-        print(f"❌ Erro ao recortar: {e}")
-        return "Erro ao processar o áudio", 500
-
-
-# 🧩 Rota oculta — Status e controle do cache
-@bp_radio.route("/radio/cache/status")
-@login_required
-def status_cache():
-    """
-    Exibe o status atual do cache de áudios e permite atualizar manualmente.
-    """
-    from mod_radio.audio_cache import (
-        CACHE_AUDIOS, CACHE_TIMESTAMP, CACHE_INTERVALO_MINUTOS, atualizar_cache
-    )
-    from datetime import datetime
-
-    agora = datetime.now()
-    status = []
-
-    for radio, cfg in RADIOS_CONFIG.items():
-        ultima = CACHE_TIMESTAMP.get(radio)
-        minutos = ((agora - ultima).total_seconds() / 60) if ultima else None
-        status.append({
-            "radio": radio,
-            "nome": cfg["nome"],
-            "arquivos": len(CACHE_AUDIOS.get(radio, [])),
-            "ultima_atualizacao": ultima.strftime("%d/%m/%Y %H:%M:%S") if ultima else None,
-            "minutos_desde": f"{minutos:.1f} min" if minutos else "—",
-        })
-
-    return render_template(
-        "status_cache.html",
-        status=status,
-        intervalo=CACHE_INTERVALO_MINUTOS,
-    )
-
-
-# 🔄 Endpoint para forçar atualização manual
-@bp_radio.route("/radio/cache/atualizar/<radio_key>")
-@login_required
-def atualizar_cache_manual(radio_key):
-    """
-    Atualiza manualmente o cache de uma rádio e redireciona de volta ao painel.
-    """
-    from mod_radio.audio_cache import atualizar_cache
-    from flask import redirect, url_for, flash
-
-    if radio_key not in RADIOS_CONFIG:
-        flash("Rádio não encontrada.", "danger")
-        return redirect(url_for("radio.status_cache"))
-
-    flash(f"Atualizando cache de {RADIOS_CONFIG[radio_key]['nome']}...", "info")
-    atualizar_cache(radio_key)
-    flash(f"✅ Cache de {RADIOS_CONFIG[radio_key]['nome']} atualizado com sucesso!", "success")
-    return redirect(url_for("radio.status_cache"))
+        flash(f"Erro ao recortar: {e}", "danger")
+        return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))

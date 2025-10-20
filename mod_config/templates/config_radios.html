@@ -1,0 +1,61 @@
+{% extends "admin_base.html" %}
+{% block title %}Config - Rádios{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h4>Rádios</h4>
+
+  <form action="{{ url_for('bp_config.add_radio') }}" method="post" class="mb-4">
+    <div class="row g-2">
+      <div class="col-md-2"><input name="chave" class="form-control" placeholder="chave (ex: clube)" required></div>
+      <div class="col-md-3"><input name="nome" class="form-control" placeholder="Nome da rádio" required></div>
+      <div class="col-md-4"><input name="pasta_base" class="form-control" placeholder="/mnt/clube_fm" required></div>
+      <div class="col-md-1"><input name="extensao" class="form-control" value=".mp3"></div>
+      <div class="col-md-2"><input name="parse_nome" class="form-control" placeholder="parse (opcional)"></div>
+      <div class="col-md-12 form-check mt-2">
+        <input class="form-check-input" type="checkbox" name="ativa" checked>
+        <label class="form-check-label">Ativa</label>
+        <button type="button" id="btnTestPath" class="btn btn-sm btn-outline-secondary ms-3">Testar pasta</button>
+        <span id="pathMsg" class="ms-2"></span>
+      </div>
+      <div class="col-md-12 mt-2"><button class="btn btn-success">Adicionar</button></div>
+    </div>
+  </form>
+
+  <table class="table table-striped">
+    <thead><tr><th>ID</th><th>Chave</th><th>Nome</th><th>Pasta</th><th>Ext.</th><th>Ativa</th><th>Ações</th></tr></thead>
+    <tbody>
+      {% for r in radios %}
+      <tr>
+        <form action="{{ url_for('bp_config.edit_radio', id_radio=r.id_radio) }}" method="post">
+          <td>{{ r.id_radio }}</td>
+          <td><input name="chave" class="form-control form-control-sm" value="{{ r.chave }}"></td>
+          <td><input name="nome" class="form-control form-control-sm" value="{{ r.nome }}"></td>
+          <td><input name="pasta_base" class="form-control form-control-sm" value="{{ r.pasta_base }}"></td>
+          <td><input name="extensao" class="form-control form-control-sm" value="{{ r.extensao }}"></td>
+          <td class="text-center"><input type="checkbox" name="ativa" {% if r.ativa %}checked{% endif %}></td>
+          <td class="d-flex gap-1">
+            <button class="btn btn-sm btn-primary">Salvar</button>
+        </form>
+            <form action="{{ url_for('bp_config.delete_radio', id_radio=r.id_radio) }}" method="post" onsubmit="return confirm('Remover esta rádio?')">
+              <button class="btn btn-sm btn-danger">Excluir</button>
+            </form>
+          </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.getElementById('btnTestPath')?.addEventListener('click', async () => {
+  const input = document.querySelector('input[name="pasta_base"]');
+  const form = new FormData();
+  form.append('pasta_base', input.value);
+  const r = await fetch('{{ url_for("bp_config.test_path") }}', { method: 'POST', body: form });
+  const data = await r.json();
+  const el = document.getElementById('pathMsg');
+  el.textContent = data.mensagem;
+  el.className = data.ok ? 'text-success' : 'text-danger';
+});
+</script>
+{% endblock %}

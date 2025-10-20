@@ -1,0 +1,26 @@
+{% extends "admin_base.html" %}
+{% block title %}Config - Sistema{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h4>Configurações do Sistema</h4>
+  <form method="post">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Secret Key (opcional)</label>
+        <input name="secret_key" class="form-control" value="{{ sistemas.secret_key or '' }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Intervalo do Cache (min)</label>
+        <input type="number" name="cache_intervalo_min" class="form-control" value="{{ sistemas.cache_intervalo_min }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Máx. por página</label>
+        <input type="number" name="max_por_pagina" class="form-control" value="{{ sistemas.max_por_pagina }}">
+      </div>
+    </div>
+    <div class="mt-3">
+      <button class="btn btn-primary">Salvar</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
