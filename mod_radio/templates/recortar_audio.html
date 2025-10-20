@@ -3,97 +3,246 @@
 
 {% block content %}
 <div class="container py-4">
-  <h4 class="mb-4"><i class="bi bi-scissors"></i> Recortar Áudio</h4>
 
-  <div class="card shadow-sm mb-4">
-    <div class="card-body">
-      <h5 class="card-title">Rádio {{ radio.nome }}</h5>
-      <p><strong>Arquivo:</strong> {{ nome_arquivo }}</p>
-      <p><strong>Caminho completo:</strong> {{ path }}</p>
-    </div>
+  <!-- Cabeçalho -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-scissors"></i> Recortar Áudio</h4>
+    <a href="{{ url_for('radio.selecionar_radio', radio_key=radio.key) }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar para lista
+    </a>
   </div>
 
-  <!-- Player de áudio -->
+  <!-- Player -->
   <div class="card shadow-sm mb-4">
-    <div class="card-body">
-      <div id="waveform"></div>
-      <div class="mt-3 text-center">
-        <button id="btnPlay" class="btn btn-primary me-2">
+    <div class="card-body text-center">
+
+      <!-- Timeline -->
+      <div id="timeline" class="mb-1"></div>
+
+      <!-- Waveform -->
+      <div id="waveform" class="mb-3"></div>
+
+      <!-- Controles principais -->
+      <div class="d-flex flex-wrap justify-content-center align-items-center gap-3 mb-3">
+        <button id="btnPlayPause" class="btn btn-primary">
           <i class="bi bi-play-circle"></i> Reproduzir / Pausar
         </button>
-        <button id="btnStop" class="btn btn-secondary me-2">
-          <i class="bi bi-stop-circle"></i> Parar
+
+        <button id="btnPreviewSel" class="btn btn-success">
+          <i class="bi bi-soundwave"></i> Pré-escutar seleção
         </button>
-        <button id="btnZoomIn" class="btn btn-outline-primary me-2">🔍 Zoom +</button>
-        <button id="btnZoomOut" class="btn btn-outline-primary">🔍 Zoom -</button>
+
+        <!-- Sliders -->
+        <div class="d-flex align-items-center ms-3">
+          <i class="bi bi-zoom-in me-2"></i>
+          <input id="zoomRange" type="range" min="20" max="400" step="10" value="20" style="width:140px">
+        </div>
+
+        <div class="d-flex align-items-center ms-3">
+          <i class="bi bi-volume-up me-2"></i>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="1" style="width:140px">
+        </div>
+      </div>
+
+      <!-- Campos de tempo -->
+      <div class="row justify-content-center g-3">
+        <div class="col-md-3">
+          <label class="form-label">Início (mm:ss)</label>
+          <input type="text" id="inicio" class="form-control text-center" value="00:00">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Fim (mm:ss)</label>
+          <input type="text" id="fim" class="form-control text-center" value="00:30">
+        </div>
+      </div>
+
+      <!-- Linha de ações -->
+      <div class="mt-4 d-flex justify-content-center gap-2 flex-wrap">
+        <button id="btnMarkStart" class="btn btn-outline-secondary">
+          <i class="bi bi-flag"></i> Marcar início
+        </button>
+        <button id="btnMarkEnd" class="btn btn-outline-secondary">
+          <i class="bi bi-flag-fill"></i> Marcar fim
+        </button>
+        <button id="btnApplyInputs" class="btn btn-outline-primary">
+          <i class="bi bi-check2-circle"></i> Aplicar tempos
+        </button>
+
+        <!-- Botão Recortar e Baixar -->
+        <form id="formRecorte" method="POST"
+              action="{{ url_for('radio.recortar_audio', radio_key=radio.key) }}">
+          <input type="hidden" name="path" value="{{ path }}">
+          <input type="hidden" name="nome_arquivo" value="{{ nome_arquivo }}">
+          <input type="hidden" id="inicio_form" name="inicio" value="00:00">
+          <input type="hidden" id="fim_form" name="fim" value="00:30">
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-scissors"></i> Recortar e Baixar
+          </button>
+        </form>
       </div>
     </div>
   </div>
 
-  <!-- Formulário de recorte -->
-  <form id="formRecorte" method="POST"
-        action="{{ url_for('radio.recortar_audio', radio_key=radio.key) }}"
-        class="card shadow-sm p-3">
-    <div class="row g-3 align-items-end">
-      <div class="col-md-4">
-        <label for="inicio" class="form-label">Início (mm:ss)</label>
-        <input type="text" id="inicio" name="inicio" class="form-control" value="00:00" required>
-      </div>
-      <div class="col-md-4">
-        <label for="fim" class="form-label">Fim (mm:ss)</label>
-        <input type="text" id="fim" name="fim" class="form-control" value="00:30" required>
-      </div>
-      <div class="col-md-4 text-end">
-        <button type="submit" class="btn btn-success">
-          <i class="bi bi-scissors"></i> Recortar e Baixar
-        </button>
-      </div>
+  <!-- Informações -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body small text-muted" style="font-size: 0.9rem;">
+      <h6 class="card-title mb-2 text-dark"><i class="bi bi-broadcast-pin"></i> Rádio {{ radio.nome }}</h6>
+      <p class="mb-1"><strong>Arquivo:</strong> {{ nome_arquivo }}</p>
+      <p class="mb-0"><strong>Caminho completo:</strong> {{ path }}</p>
     </div>
-
-    <input type="hidden" name="path" value="{{ path }}">
-    <input type="hidden" name="nome_arquivo" value="{{ nome_arquivo }}">
-  </form>
+  </div>
 </div>
 
-<!-- WaveSurfer.js -->
+<!-- Custom CSS -->
+<style>
+  #waveform {
+    background: linear-gradient(to bottom, #f9fafb, #eef1f4);
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.08);
+    height: 200px;
+  }
+
+  #timeline {
+    font-size: 0.8rem;
+    color: #6c757d;
+    height: 20px;
+  }
+</style>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://unpkg.com/wavesurfer.js@7.0.3/dist/wavesurfer.min.js"></script>
 <script src="https://unpkg.com/wavesurfer.js@7.0.3/dist/plugins/regions.min.js"></script>
+<script src="https://unpkg.com/wavesurfer.js@7.0.3/dist/plugins/timeline.min.js"></script>
 
 {% block scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
-  // Caminho absoluto do arquivo recebido do Flask
-  const rawPath = "{{ path | replace('\\', '/') }}";
+  const toSec = t => (t.split(":").reduce((m,s)=>(+m)*60+(+s)))||0;
+  const toTime = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+
+  const rawPath = "{{ path | replace('\\','/') }}";
   const playURL = "/radio/play?path=" + encodeURIComponent(rawPath);
 
-  console.log("🎧 Caminho original:", rawPath);
-  console.log("🎧 URL final de reprodução:", playURL);
+  const initialZoom = 20;
+  document.getElementById("zoomRange").value = initialZoom;
 
   // Criação do WaveSurfer
   const wavesurfer = WaveSurfer.create({
     container: "#waveform",
-    waveColor: "#cce5ff",
+    waveColor: "#99c2ff",
     progressColor: "#007bff",
-    height: 100,
+    cursorColor: "#0d6efd",
+    height: 200,
+    minPxPerSec: initialZoom,
+    normalize: true,
   });
 
-  // Controles de reprodução
-  const btnPlay = document.getElementById("btnPlay");
-  const btnStop = document.getElementById("btnStop");
-  const btnZoomIn = document.getElementById("btnZoomIn");
-  const btnZoomOut = document.getElementById("btnZoomOut");
-
-  btnPlay.addEventListener("click", () => wavesurfer.playPause());
-  btnStop.addEventListener("click", () => wavesurfer.stop());
-  btnZoomIn.addEventListener("click", () => wavesurfer.zoom(wavesurfer.params.minPxPerSec * 1.2));
-  btnZoomOut.addEventListener("click", () => wavesurfer.zoom(wavesurfer.params.minPxPerSec / 1.2));
+  const regions = wavesurfer.registerPlugin(WaveSurfer.Regions.create());
 
   try {
     await wavesurfer.load(playURL);
-    console.log("✅ Áudio carregado com sucesso!");
+
+    // só cria o timeline depois que o áudio for carregado
+    WaveSurfer.Timeline.create({
+      container: "#timeline",
+      height: 20,
+      notchPercentHeight: 50,
+      primaryLabelInterval: 10,
+      secondaryLabelInterval: 5,
+      primaryFontColor: "#6c757d",
+      secondaryFontColor: "#adb5bd",
+      waveSurfer: wavesurfer
+    });
+
+    Swal.fire({ icon: "success", title: "Áudio carregado!", timer: 1000, showConfirmButton: false });
   } catch (err) {
-    console.error("❌ Erro ao carregar o áudio:", err);
+    Swal.fire({ icon: "error", title: "Erro ao carregar áudio!", text: err });
   }
+
+  const inInicio = document.getElementById("inicio");
+  const inFim = document.getElementById("fim");
+  const inInicioForm = document.getElementById("inicio_form");
+  const inFimForm = document.getElementById("fim_form");
+  const zoomRange = document.getElementById("zoomRange");
+  const volume = document.getElementById("volume");
+
+  const getRegion = () => Object.values(regions.regions)[0] || null;
+  const ensureRegion = () => getRegion() || regions.addRegion({
+    start: toSec(inInicio.value),
+    end: toSec(inFim.value),
+    color: "rgba(0,123,255,0.25)",
+    drag: true, resize: true
+  });
+
+  document.getElementById("btnPlayPause").onclick = () => wavesurfer.playPause();
+
+  document.getElementById("btnMarkStart").onclick = () => {
+    const cur = wavesurfer.getCurrentTime();
+    inInicio.value = toTime(cur);
+    ensureRegion().setOptions({ start: cur });
+  };
+  document.getElementById("btnMarkEnd").onclick = () => {
+    const cur = wavesurfer.getCurrentTime();
+    inFim.value = toTime(cur);
+    ensureRegion().setOptions({ end: cur });
+  };
+  document.getElementById("btnApplyInputs").onclick = () => {
+    const s = toSec(inInicio.value);
+    const e = toSec(inFim.value);
+    ensureRegion().setOptions({ start: Math.min(s,e), end: Math.max(s,e) });
+  };
+
+  document.getElementById("btnPreviewSel").onclick = async () => {
+    const r = getRegion();
+    if (!r) return Swal.fire({ icon: "warning", title: "Nenhuma seleção encontrada!" });
+    wavesurfer.setTime(r.start);
+    await wavesurfer.play();
+    const stopAt = r.end;
+    const timer = setInterval(() => {
+      if (wavesurfer.getCurrentTime() >= stopAt) {
+        wavesurfer.pause();
+        clearInterval(timer);
+      }
+    }, 100);
+  };
+
+  zoomRange.oninput = e => wavesurfer.zoom(parseInt(e.target.value));
+  volume.oninput = e => wavesurfer.setVolume(parseFloat(e.target.value));
+
+  regions.on("region-updated", r => {
+    inInicio.value = toTime(r.start);
+    inFim.value = toTime(r.end);
+    inInicioForm.value = inInicio.value;
+    inFimForm.value = inFim.value;
+  });
+  ["input","change"].forEach(ev=>{
+    inInicio.addEventListener(ev,()=>inInicioForm.value=inInicio.value);
+    inFim.addEventListener(ev,()=>inFimForm.value=inFim.value);
+  });
+
+  // Feedback visual ao enviar
+  const form = document.getElementById("formRecorte");
+  form.addEventListener("submit", () => {
+    Swal.fire({
+      title: "Processando recorte...",
+      text: "Gerando o novo arquivo de áudio.",
+      icon: "info",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    setTimeout(() => {
+      Swal.fire({
+        icon: "success",
+        title: "Recorte concluído!",
+        text: "O download do áudio começou.",
+        showConfirmButton: false,
+        timer: 2000
+      });
+    }, 2500);
+  });
 });
 </script>
 {% endblock %}
