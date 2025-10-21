@@ -1,10 +1,15 @@
 import os
 from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from . import bp_config
-from .models import ConfigLDAP, ConfigRadio, ConfigSistema, carregar_radios_config, ConfigGoogleDrive
+from .models import (
+    ConfigLDAP, ConfigRadio, ConfigSistema,
+    carregar_radios_config, ConfigGoogleDrive, get_media_drive_dir
+)
 from mod_auth.utils import admin_required
 from mod_auth.ldap_utils import testar_conexao_ldap
-from mod_config.google_drive_utils import create_flow, build_drive_service
+from mod_config.google_drive_utils import (
+    create_flow, build_drive_service, sincronizar_pasta_drive_para_local
+)
 import requests
 
 
@@ -249,3 +254,38 @@ def google_drive_folders():
         return jsonify({"ok": True, "pastas": pastas})
     except Exception as e:
         return jsonify({"ok": False, "pastas": [], "msg": str(e)}), 500
+    
+
+# ============================================================
+# ☁️ SINCRONIZAÇÃO DE PASTA DO GOOGLE DRIVE
+# ============================================================
+@bp_config.route("/config/sincronizar-drive/<int:id_radio>")
+@admin_required
+def sincronizar_drive(id_radio):
+    """Sincroniza os arquivos da pasta do Google Drive com o diretório local."""
+    try:
+        radio = ConfigRadio.by_id(id_radio)
+        if not radio:
+            flash("Rádio não encontrada.", "danger")
+            return redirect(url_for("bp_config.radios"))
+
+        if not radio.get("drive_folder_id"):
+            flash("Esta rádio não possui pasta vinculada ao Google Drive.", "warning")
+            return redirect(url_for("bp_config.radios"))
+
+        cfg_drive = ConfigGoogleDrive.get()
+        if not cfg_drive:
+            flash("Google Drive não configurado.", "warning")
+            return redirect(url_for("bp_config.config_google_drive"))
+
+        service = build_drive_service(cfg_drive)
+        destino = os.path.join(get_media_drive_dir(), radio["nome"].replace(" ", "_"))
+        total = sincronizar_pasta_drive_para_local(service, radio["drive_folder_id"], destino)
+
+        flash(f"✅ {total} arquivos sincronizados da rádio '{radio['nome']}'!", "success")
+        print(f"📦 Sincronização concluída → {destino}")
+    except Exception as e:
+        flash(f"Erro ao sincronizar com o Drive: {e}", "danger")
+        print("❌ Erro de sincronização:", e)
+
+    return redirect(url_for("bp_config.radios"))

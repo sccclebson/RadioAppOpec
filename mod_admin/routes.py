@@ -3,9 +3,6 @@ from flask import Blueprint, render_template, session, redirect, url_for, reques
 from .models import listar_logins, listar_usuarios, contar_usuarios, contar_logins, get_connection
 from .models import obter_usuario_por_id, criar_usuario, atualizar_usuario, excluir_usuario
 from werkzeug.security import generate_password_hash
-
-
-
 from mod_auth.utils import admin_required
 
 bp_admin = Blueprint('admin', __name__, template_folder='templates')
@@ -107,41 +104,38 @@ def excluir_usuario_route(user_id):
 
 
 # -------------------------------------------------------------------------
-# 🧠 STATUS DO CACHE DE ÁUDIOS (LOCAL + DRIVE)
+# 🧠 STATUS DO CACHE DE ÁUDIOS (LOCAL)
 # -------------------------------------------------------------------------
-from mod_radio.audio_cache import CACHE_LOCAL, CACHE_DRIVE
-from mod_config.models import carregar_radios_config
 from datetime import datetime
+from mod_radio.audio_cache import CACHE_AUDIOS, CACHE_TIMESTAMP
+from mod_config.models import carregar_radios_config
 
-@bp_admin.route('/admin/status-cache')
+@bp_admin.route("/admin/status-cache")
 @admin_required
 def status_cache():
-    """Exibe o status atual do cache de áudios (para administradores)."""
+    """Exibe o status do cache de áudios."""
     radios_cfg = carregar_radios_config()
     agora = datetime.now()
-
     status = []
+
     for radio_key, cfg in radios_cfg.items():
-        if radio_key in CACHE_LOCAL:
-            qtd = len(CACHE_LOCAL[radio_key])
-            tipo = "Local"
-        elif radio_key in CACHE_DRIVE:
-            qtd = len(CACHE_DRIVE[radio_key])
-            tipo = "Drive"
-        else:
-            qtd = 0
-            tipo = "—"
+        qtd = len(CACHE_AUDIOS.get(radio_key, []))
+        ultima = CACHE_TIMESTAMP.get(radio_key)
+        minutos_desde = "—"
+
+        if ultima and isinstance(ultima, str):
+            try:
+                ultima_dt = datetime.strptime(ultima, "%Y-%m-%d %H:%M:%S")
+                minutos_desde = int((agora - ultima_dt).total_seconds() // 60)
+            except Exception:
+                pass
 
         status.append({
             "radio": radio_key,
-            "nome": cfg["nome"],
-            "tipo": tipo,
+            "nome": cfg.get("nome", "—"),
             "arquivos": qtd,
-            "ultima_atualizacao": "Persistente (Drive)" if tipo == "Drive" else "Em memória (Local)",
+            "ultima_atualizacao": ultima or "— aguardando —",
+            "minutos_desde": f"{minutos_desde} min" if isinstance(minutos_desde, int) else minutos_desde,
         })
 
-    return render_template(
-        'status_cache.html',
-        status=status,
-        intervalo="Manual"
-    )
+    return render_template("status_cache.html", status=status, intervalo="Manual / Local")

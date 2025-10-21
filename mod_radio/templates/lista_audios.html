@@ -38,30 +38,30 @@
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const tabelaContainer = document.getElementById("tabelaContainer");
-  const formFiltro = document.getElementById("formFiltro");
-  const spinner = document.getElementById("spinner");
-  const textFiltro = document.getElementById("textFiltro");
-  const radioKey = "{{ radio_key }}";  // ✅ vem direto do Flask, garantido
+  document.addEventListener("DOMContentLoaded", () => {
+    const tabelaContainer = document.getElementById("tabelaContainer");
+    const formFiltro = document.getElementById("formFiltro");
+    const spinner = document.getElementById("spinner");
+    const textFiltro = document.getElementById("textFiltro");
+    const radioKey = "{{ radio_key }}";  // ✅ vem direto do Flask, garantido
 
 
-  async function carregarAudios(page = 1) {
-    tabelaContainer.innerHTML = "<div class='text-center text-muted py-5'>Carregando áudios...</div>";
-    const data = document.getElementById("filtroData").value;
-    const hora_ini = document.getElementById("filtroHoraIni").value;
-    const hora_fim = document.getElementById("filtroHoraFim").value;
+    async function carregarAudios(page = 1) {
+      tabelaContainer.innerHTML = "<div class='text-center text-muted py-5'>Carregando áudios...</div>";
+      const data = document.getElementById("filtroData").value;
+      const hora_ini = document.getElementById("filtroHoraIni").value;
+      const hora_fim = document.getElementById("filtroHoraFim").value;
 
-    const url = `/radio/audios/data?radio=${radioKey}&data=${data}&hora_ini=${hora_ini}&hora_fim=${hora_fim}&page=${page}`;
-    const resp = await fetch(url);
-    const dados = await resp.json();
+      const url = `/radio/audios/data?radio=${radioKey}&data=${data}&hora_ini=${hora_ini}&hora_fim=${hora_fim}&page=${page}`;
+      const resp = await fetch(url);
+      const dados = await resp.json();
 
-    if (!dados.audios || dados.audios.length === 0) {
-      tabelaContainer.innerHTML = "<p class='text-center text-muted py-5'>Nenhum áudio encontrado.</p>";
-      return;
-    }
+      if (!dados.audios || dados.audios.length === 0) {
+        tabelaContainer.innerHTML = "<p class='text-center text-muted py-5'>Nenhum áudio encontrado.</p>";
+        return;
+      }
 
-    let html = `
+      let html = `
       <table class="table table-hover align-middle text-center shadow-sm">
         <thead class="table-dark">
           <tr>
@@ -75,8 +75,8 @@ document.addEventListener("DOMContentLoaded", () => {
         <tbody>
     `;
 
-    for (const a of dados.audios) {
-      html += `
+      for (const a of dados.audios) {
+        html += `
         <tr>
           <td class="fw-semibold">${a.nome}</td>
           <td>${a.datahora}</td>
@@ -87,50 +87,50 @@ document.addEventListener("DOMContentLoaded", () => {
             </audio>
           </td>
           <td>
-            <a href="/radio/{{ radio.key }}/recortar?path=${encodeURIComponent(a.caminho)}" class="btn btn-sm btn-outline-info">✂️ Recortar</a>
+            <a href="/radio/{{ radio.key }}/recortar?path=${a.caminho.replace(/\\/g, "/")}" class="btn btn-sm btn-outline-info">✂️ Recortar</a>
             </a>
           </td>
         </tr>
       `;
-    }
+      }
 
-    html += `</tbody></table><nav><ul class="pagination justify-content-center mt-3">`;
+      html += `</tbody></table><nav><ul class="pagination justify-content-center mt-3">`;
 
-    if (dados.pagina_atual > 1)
-      html += `<li class="page-item"><button class="page-link" data-page="${dados.pagina_atual - 1}">⬅️ Anterior</button></li>`;
-    else
-      html += `<li class="page-item disabled"><span class="page-link">⬅️ Anterior</span></li>`;
+      if (dados.pagina_atual > 1)
+        html += `<li class="page-item"><button class="page-link" data-page="${dados.pagina_atual - 1}">⬅️ Anterior</button></li>`;
+      else
+        html += `<li class="page-item disabled"><span class="page-link">⬅️ Anterior</span></li>`;
 
-    for (let i = 1; i <= dados.total_paginas; i++)
-      html += `<li class="page-item ${i === dados.pagina_atual ? "active" : ""}">
+      for (let i = 1; i <= dados.total_paginas; i++)
+        html += `<li class="page-item ${i === dados.pagina_atual ? "active" : ""}">
                  <button class="page-link" data-page="${i}">${i}</button>
                </li>`;
 
-    if (dados.pagina_atual < dados.total_paginas)
-      html += `<li class="page-item"><button class="page-link" data-page="${dados.pagina_atual + 1}">Próximo ➡️</button></li>`;
-    else
-      html += `<li class="page-item disabled"><span class="page-link">Próximo ➡️</span></li>`;
+      if (dados.pagina_atual < dados.total_paginas)
+        html += `<li class="page-item"><button class="page-link" data-page="${dados.pagina_atual + 1}">Próximo ➡️</button></li>`;
+      else
+        html += `<li class="page-item disabled"><span class="page-link">Próximo ➡️</span></li>`;
 
-    html += `</ul></nav>`;
-    tabelaContainer.innerHTML = html;
+      html += `</ul></nav>`;
+      tabelaContainer.innerHTML = html;
 
-    document.querySelectorAll(".page-link[data-page]").forEach(btn => {
-      btn.addEventListener("click", () => carregarAudios(btn.getAttribute("data-page")));
+      document.querySelectorAll(".page-link[data-page]").forEach(btn => {
+        btn.addEventListener("click", () => carregarAudios(btn.getAttribute("data-page")));
+      });
+    }
+
+    formFiltro.addEventListener("submit", e => {
+      e.preventDefault();
+      spinner.classList.remove("d-none");
+      textFiltro.textContent = "Filtrando...";
+      carregarAudios().then(() => {
+        spinner.classList.add("d-none");
+        textFiltro.textContent = "Filtrar";
+      });
     });
-  }
 
-  formFiltro.addEventListener("submit", e => {
-    e.preventDefault();
-    spinner.classList.remove("d-none");
-    textFiltro.textContent = "Filtrando...";
-    carregarAudios().then(() => {
-      spinner.classList.add("d-none");
-      textFiltro.textContent = "Filtrar";
-    });
+    carregarAudios();
   });
-
-  carregarAudios();
-});
 </script>
 
 {% endblock %}

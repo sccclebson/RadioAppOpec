@@ -10,6 +10,11 @@ def _conn():
     conn.row_factory = sqlite3.Row
     return conn
 
+# 🔧 Diretório base onde os áudios do Drive serão salvos
+def get_media_drive_dir() -> str:
+    base = os.path.join(os.getcwd(), "media_drive")
+    os.makedirs(base, exist_ok=True)
+    return base
 
 # ============================================================
 # 🔧 CONFIGURAÇÕES DO SISTEMA

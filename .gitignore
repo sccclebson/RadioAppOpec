@@ -21,6 +21,7 @@ venv312/
 ENV/
 env/
 .venv/
+media_drive/
 
 # =========================================
 # 🗄️ Bancos de dados e dados locais

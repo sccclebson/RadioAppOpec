@@ -5,10 +5,14 @@ from mod_auth.routes import bp_auth
 from mod_admin.routes import bp_admin
 from mod_config import bp_config
 from mod_config.models import ConfigSistema
-from mod_radio.audio_cache import inicializar_cache  # ✅ novo import
+from mod_radio.audio_cache import inicializar_cache_local  # ✅ correto
+
 
 from dotenv import load_dotenv
 load_dotenv()
+
+MEDIA_DRIVE_DIR = os.path.join(os.getcwd(), "media_drive")
+os.makedirs(MEDIA_DRIVE_DIR, exist_ok=True)
 
 # ============================================================
 # 🎛️ Criação da aplicação Flask
@@ -31,6 +35,9 @@ app.register_blueprint(bp_auth)
 app.register_blueprint(bp_admin)
 app.register_blueprint(bp_config)
 
+# Inicializa cache local ao iniciar o servidor
+inicializar_cache_local()
+
 # ============================================================
 # ⚠️ HANDLERS DE ERRO COMUM
 # ============================================================
@@ -44,7 +51,7 @@ def e403(_e):
 # ============================================================
 if __name__ == "__main__":
     # Inicializa o cache (carrega local + Drive persistente)
-    inicializar_cache()
+
     print("🚀 Sistema iniciado com sucesso! Acesse: http://127.0.0.1:5000")
 
     app.run(

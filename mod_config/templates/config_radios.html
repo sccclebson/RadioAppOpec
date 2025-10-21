@@ -88,10 +88,17 @@
             <td class="d-flex gap-1">
               <button class="btn btn-sm btn-primary">Salvar</button>
           </form>
-              <form action="{{ url_for('bp_config.delete_radio', id_radio=r.id_radio) }}" method="post" onsubmit="return confirm('Remover esta rádio?')">
-                <button class="btn btn-sm btn-danger">Excluir</button>
-              </form>
-            </td>
+          {% if r.tipo_pasta == 'drive' %}
+          <a href="{{ url_for('bp_config.sincronizar_drive', id_radio=r.id_radio) }}"
+            class="btn btn-sm btn-outline-success">
+            <i class="bi bi-cloud-arrow-down"></i> Sincronizar Drive
+          </a>
+          {% endif %}
+          <form action="{{ url_for('bp_config.delete_radio', id_radio=r.id_radio) }}" method="post"
+            onsubmit="return confirm('Remover esta rádio?')">
+            <button class="btn btn-sm btn-danger">Excluir</button>
+          </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -100,48 +107,48 @@
 </div>
 
 <script>
-const tipoSelect = document.getElementById('tipoPasta');
-const divLocal = document.getElementById('divLocal');
-const divDrive = document.getElementById('divDrive');
-const driveSelect = document.getElementById('driveFolders');
+  const tipoSelect = document.getElementById('tipoPasta');
+  const divLocal = document.getElementById('divLocal');
+  const divDrive = document.getElementById('divDrive');
+  const driveSelect = document.getElementById('driveFolders');
 
-tipoSelect.addEventListener('change', async () => {
-  const tipo = tipoSelect.value;
-  if (tipo === 'drive') {
-    divLocal.classList.add('d-none');
-    divDrive.classList.remove('d-none');
+  tipoSelect.addEventListener('change', async () => {
+    const tipo = tipoSelect.value;
+    if (tipo === 'drive') {
+      divLocal.classList.add('d-none');
+      divDrive.classList.remove('d-none');
 
-    const resp = await fetch('{{ url_for("bp_config.google_drive_folders") }}');
-    const data = await resp.json();
+      const resp = await fetch('{{ url_for("bp_config.google_drive_folders") }}');
+      const data = await resp.json();
 
-    driveSelect.innerHTML = '';
-    if (data.ok) {
-      data.pastas.forEach(p => {
+      driveSelect.innerHTML = '';
+      if (data.ok) {
+        data.pastas.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name;
+          driveSelect.appendChild(opt);
+        });
+      } else {
         const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.name;
+        opt.textContent = data.msg || 'Erro ao carregar pastas';
         driveSelect.appendChild(opt);
-      });
+      }
     } else {
-      const opt = document.createElement('option');
-      opt.textContent = data.msg || 'Erro ao carregar pastas';
-      driveSelect.appendChild(opt);
+      divLocal.classList.remove('d-none');
+      divDrive.classList.add('d-none');
     }
-  } else {
-    divLocal.classList.remove('d-none');
-    divDrive.classList.add('d-none');
-  }
-});
+  });
 
-document.getElementById('btnTestPath')?.addEventListener('click', async () => {
-  const input = document.querySelector('input[name="pasta_base"]');
-  const form = new FormData();
-  form.append('pasta_base', input.value);
-  const r = await fetch('{{ url_for("bp_config.test_path") }}', { method: 'POST', body: form });
-  const data = await r.json();
-  const el = document.getElementById('pathMsg');
-  el.textContent = data.mensagem;
-  el.className = data.ok ? 'text-success small' : 'text-danger small';
-});
+  document.getElementById('btnTestPath')?.addEventListener('click', async () => {
+    const input = document.querySelector('input[name="pasta_base"]');
+    const form = new FormData();
+    form.append('pasta_base', input.value);
+    const r = await fetch('{{ url_for("bp_config.test_path") }}', { method: 'POST', body: form });
+    const data = await r.json();
+    const el = document.getElementById('pathMsg');
+    el.textContent = data.mensagem;
+    el.className = data.ok ? 'text-success small' : 'text-danger small';
+  });
 </script>
 {% endblock %}
