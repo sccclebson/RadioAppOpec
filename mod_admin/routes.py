@@ -107,9 +107,9 @@ def excluir_usuario_route(user_id):
 
 
 # -------------------------------------------------------------------------
-# 🧠 STATUS DO CACHE DE ÁUDIOS
+# 🧠 STATUS DO CACHE DE ÁUDIOS (LOCAL + DRIVE)
 # -------------------------------------------------------------------------
-from mod_radio.audio_cache import CACHE_AUDIOS, CACHE_TIMESTAMP, CACHE_INTERVALO_MINUTOS
+from mod_radio.audio_cache import CACHE_LOCAL, CACHE_DRIVE
 from mod_config.models import carregar_radios_config
 from datetime import datetime
 
@@ -122,19 +122,26 @@ def status_cache():
 
     status = []
     for radio_key, cfg in radios_cfg.items():
-        ultima = CACHE_TIMESTAMP.get(radio_key)
-        minutos_desde = int((agora - ultima).total_seconds() / 60) if ultima else "—"
-        qtd = len(CACHE_AUDIOS.get(radio_key, []))
+        if radio_key in CACHE_LOCAL:
+            qtd = len(CACHE_LOCAL[radio_key])
+            tipo = "Local"
+        elif radio_key in CACHE_DRIVE:
+            qtd = len(CACHE_DRIVE[radio_key])
+            tipo = "Drive"
+        else:
+            qtd = 0
+            tipo = "—"
+
         status.append({
             "radio": radio_key,
             "nome": cfg["nome"],
+            "tipo": tipo,
             "arquivos": qtd,
-            "ultima_atualizacao": ultima.strftime("%d/%m/%Y %H:%M:%S") if ultima else None,
-            "minutos_desde": minutos_desde,
+            "ultima_atualizacao": "Persistente (Drive)" if tipo == "Drive" else "Em memória (Local)",
         })
 
     return render_template(
         'status_cache.html',
         status=status,
-        intervalo=CACHE_INTERVALO_MINUTOS
+        intervalo="Manual"
     )

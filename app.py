@@ -5,26 +5,21 @@ from mod_auth.routes import bp_auth
 from mod_admin.routes import bp_admin
 from mod_config import bp_config
 from mod_config.models import ConfigSistema
-from mod_radio.audio_cache import iniciar_cache_automatico
+from mod_radio.audio_cache import inicializar_cache  # ✅ novo import
 
 from dotenv import load_dotenv
 load_dotenv()
-
 
 # ============================================================
 # 🎛️ Criação da aplicação Flask
 # ============================================================
 app = Flask(__name__)
 
-# ---------- CONFIGURAÇÃO DINÂMICA ----------
-# SECRET_KEY: prioridade ENV > BD > fallback dev
 app.config["SECRET_KEY"] = (
     os.getenv("SECRET_KEY")
     or (ConfigSistema.get().get("secret_key") or "dev-secret")
 )
 
-# ---------- BANCO DE DADOS ----------
-# (mantém o SQLite padrão, compatível com Windows e Linux)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///usuarios.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -48,21 +43,13 @@ def e403(_e):
 # 🚀 ENTRYPOINT PRINCIPAL
 # ============================================================
 if __name__ == "__main__":
-    # Carrega o intervalo de cache configurado
-    sistema = ConfigSistema.get()
-    intervalo = int(sistema.get("cache_intervalo_min", 10))
-
-    # Inicia o cache automático em thread separada
-    print(f"🕒 Atualização automática de cache iniciada ({intervalo}min)")
-    iniciar_cache_automatico(intervalo)
-
-    # Mensagem clara de inicialização
+    # Inicializa o cache (carrega local + Drive persistente)
+    inicializar_cache()
     print("🚀 Sistema iniciado com sucesso! Acesse: http://127.0.0.1:5000")
 
-    # Executa o Flask
     app.run(
-        host="0.0.0.0",  # permite acesso remoto (útil em VMs ou Proxmox)
+        host="0.0.0.0",
         port=5000,
         debug=True,
-        use_reloader=True  # mantém o auto reload ativo
+        use_reloader=True
     )
