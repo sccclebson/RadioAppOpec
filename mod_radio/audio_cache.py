@@ -48,27 +48,34 @@ def salvar_cache():
 # -------------------------------------------------------------------------
 # CACHE PRINCIPAL
 # -------------------------------------------------------------------------
-def atualizar_cache(radio_key):
-    """Atualiza o cache de uma rádio específica (local ou Drive)."""
-    radios_cfg = carregar_radios_config()
-    radio = radios_cfg.get(radio_key)
-    if not radio:
-        print(f"⚠️ [CACHE] Rádio '{radio_key}' não encontrada na configuração.")
+def atualizar_cache(radio_key, radio_cfg=None):
+    """Atualiza o cache local da rádio (Drive sincronizado ou local)."""
+    from mod_config.models import carregar_radios_config
+
+    if not radio_cfg:
+        radios_cfg = carregar_radios_config()
+        radio_cfg = radios_cfg.get(radio_key)
+
+    if not radio_cfg:
+        print(f"⚠️ [CACHE] Rádio '{radio_key}' não encontrada nas configurações.")
         return
 
-    base_dir = radio.get("pasta_base") or ""
-    tipo = radio.get("tipo_pasta") or "local"
+    base_dir = radio_cfg.get("pasta_base") or ""
+    tipo = radio_cfg.get("tipo_pasta") or "local"
+    extensao = radio_cfg.get("extensao", ".mp3")
+
+    print(f"💾 [CACHE] Rádio '{radio_key}' → tipo: {tipo}, extensões: {extensao}")
+    print(f"💾 [CACHE] Pasta configurada: {base_dir}")
 
     # -----------------------------------------------------------------
-    # 🧠 Detecta se a rádio é Drive e usa pasta sincronizada em media_drive
+    # 🧠 Detecta se é uma rádio vinculada ao Google Drive
     # -----------------------------------------------------------------
     if tipo == "drive" or "[Google Drive]" in base_dir:
         MEDIA_DIR = Path(os.getcwd()) / "media_drive"
 
-        # 🔍 Tenta localizar a pasta correspondente
         possiveis = [
             MEDIA_DIR / radio_key,
-            MEDIA_DIR / radio.get("nome", "").strip().replace(" ", "_"),
+            MEDIA_DIR / radio_cfg.get("nome", "").strip().replace(" ", "_"),
             MEDIA_DIR / base_dir.replace("[Google Drive]", "").strip().replace(" ", "_"),
         ]
 
@@ -80,21 +87,29 @@ def atualizar_cache(radio_key):
 
         if not sync_path:
             print(f"⚠️ [CACHE] Nenhuma pasta sincronizada encontrada para '{radio_key}' em {MEDIA_DIR}")
+            CACHE_AUDIOS[radio_key] = []
             return
 
         base_dir = str(sync_path)
-        print(f"💾 [CACHE] Usando pasta sincronizada local para '{radio_key}': {base_dir}")
+        print(f"💾 [CACHE] Usando pasta sincronizada local: {base_dir}")
 
     # -----------------------------------------------------------------
-    # Varre os arquivos da pasta e atualiza cache
+    # 🔎 Varre os arquivos e atualiza o cache
     # -----------------------------------------------------------------
     if not os.path.exists(base_dir):
         print(f"⚠️ [CACHE] Caminho inexistente: {base_dir}")
         CACHE_AUDIOS[radio_key] = []
         return
 
-    print(f"🎧 [CACHE] Iniciando varredura em: {base_dir}")
-    audios = listar_audios({"pasta_base": base_dir, "extensao": ".mp3", "chave": radio_key})
+    print(f"🎧 [CACHE] Iniciando varredura recursiva em: {base_dir}")
+    radio_cfg_local = {
+        "pasta_base": base_dir,
+        "extensao": extensao,
+        "chave": radio_key,
+        "nome": radio_cfg.get("nome", radio_key)
+    }
+
+    audios = listar_audios(radio_cfg_local)
     CACHE_AUDIOS[radio_key] = audios
     CACHE_TIMESTAMP[radio_key] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

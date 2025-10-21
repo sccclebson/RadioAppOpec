@@ -9,6 +9,8 @@ from .audio_utils import listar_audios
 from mod_radio.audio_cache import obter_cache, atualizar_cache
 from mod_config.models import carregar_radios_config, ConfigSistema
 
+from urllib.parse import unquote
+
 bp_radio = Blueprint("radio", __name__, template_folder="templates")
 
 # -------------------------------------------------------------------------
@@ -171,12 +173,22 @@ def recortar_audio(radio_key):
         flash("Rádio não encontrada.", "danger")
         return redirect(url_for("radio.select_radio"))
 
-    # --- Modo GET: abre tela de recorte ---
+    # ==============================================================
+    # MODO GET → abre a tela de recorte
+    # ==============================================================
     if request.method == "GET":
-        caminho = request.args.get("path", "")
-        caminho = unquote(caminho).replace("/", "\\")
-        print(f"🎬 [RECORTE] Caminho recebido: {caminho}")
+        caminho_raw = request.args.get("path", "")
+        caminho = unquote(caminho_raw).replace("/", "\\")
+        print(f"🎬 [RECORTE] Caminho recebido (decodificado): {caminho}")
 
+        # Se for um caminho relativo dentro da pasta sincronizada:
+        if not os.path.isabs(caminho) and "[Google Drive]" in radio.get("pasta_base", ""):
+            import pathlib
+            MEDIA_DIR = pathlib.Path(os.getcwd()) / "media_drive"
+            nome_radio = radio.get("nome", "").replace(" ", "_")
+            caminho = str(MEDIA_DIR / nome_radio / caminho_raw)
+
+        # Valida se o arquivo existe
         if not os.path.isfile(caminho):
             flash("Arquivo inválido ou não encontrado.", "danger")
             return redirect(url_for("radio.selecionar_radio", radio_key=radio_key))
@@ -189,14 +201,15 @@ def recortar_audio(radio_key):
             nome_arquivo=nome_arquivo,
         )
 
-    # --- Modo POST: processa recorte ---
+    # ==============================================================
+    # MODO POST → processa o recorte e faz download
+    # ==============================================================
     caminho = request.form.get("path")
     ini = request.form.get("inicio", "00:00")
     fim = request.form.get("fim", "00:30")
 
     if not caminho or not os.path.isfile(caminho):
         abort(403)
-
 
     def to_ms(hhmmss):
         parts = [int(p) for p in hhmmss.split(":")]
@@ -209,15 +222,25 @@ def recortar_audio(radio_key):
         return 0
 
     try:
+        print(f"✂️ [RECORTE] Recortando {caminho} ({ini} → {fim})...")
         audio = AudioSegment.from_file(caminho)
         cut = audio[to_ms(ini):to_ms(fim)]
         buf = io.BytesIO()
         cut.export(buf, format="mp3")
         buf.seek(0)
+
         filename = os.path.basename(caminho)
         saida = f"recorte_{ini.replace(':','')}-{fim.replace(':','')}_{filename}"
-        return send_file(buf, as_attachment=True, download_name=saida, mimetype="audio/mpeg")
+        print(f"✅ [RECORTE] Recorte concluído: {saida}")
+
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=saida,
+            mimetype="audio/mpeg"
+        )
     except Exception as e:
+        print(f"❌ [RECORTE] Erro ao recortar: {e}")
         flash(f"Erro ao recortar: {e}", "danger")
         return redirect(url_for("radio.selecionar_radio", radio_key=radio_key))
 
@@ -225,13 +248,23 @@ def recortar_audio(radio_key):
 # -------------------------------------------------------------------------
 # ATUALIZAÇÃO DE CACHE MANUAL
 # -------------------------------------------------------------------------
-@bp_radio.route("/radio/<radio_key>/atualizar-cache")
+@bp_radio.route('/radio/<radio_key>/atualizar-cache')
 @admin_required
 def atualizar_cache_manual(radio_key):
-    try:
-        atualizar_cache(radio_key)
-        flash(f"Cache da rádio '{radio_key}' atualizado com sucesso.", "success")
-        print(f"🔄 [ADMIN] Cache manual solicitado para {radio_key}")
-    except Exception as e:
-        flash(f"Erro ao atualizar cache da rádio '{radio_key}': {e}", "danger")
-    return redirect(url_for("radio.select_radio"))
+    from mod_config.models import carregar_radios_config
+    radios_cfg = carregar_radios_config()
+    radio_cfg = radios_cfg.get(radio_key)
+
+    if not radio_cfg:
+        flash(f"⚠️ Rádio '{radio_key}' não encontrada nas configurações.", "danger")
+        return redirect(url_for("admin.status_cache"))
+
+    print(f"💾 [CACHE] Usando pasta sincronizada local para '{radio_key}': {radio_cfg.get('pasta_base')}")
+    atualizar_cache(radio_key, radio_cfg)
+    flash(f"✅ Cache da rádio '{radio_cfg.get('nome', radio_key)}' atualizado com sucesso.", "success")
+
+    # 🔁 Fica na mesma página de status
+    print(f"✅ [ADMIN] Cache manual atualizado para '{radio_key}'.")
+    return redirect(url_for('admin.status_cache'))
+
+

@@ -83,11 +83,12 @@
           <td>${a.tamanho}</td>
           <td style="min-width:210px;">
             <audio controls preload="none" class="w-100 rounded">
-              <source src="/radio/play?path=${encodeURIComponent(a.caminho)}" type="audio/mpeg">
+              <source src="/radio/play?path=${encodeURIComponent(a.caminho)}" type="audio/wav">
             </audio>
           </td>
           <td>
-            <a href="/radio/{{ radio.key }}/recortar?path=${a.caminho.replace(/\\/g, "/")}" class="btn btn-sm btn-outline-info">✂️ Recortar</a>
+            <a href="/radio/{{ radio.key }}/recortar?path=${encodeURIComponent(a.caminho)}"
+              class="btn btn-sm btn-outline-info">✂️ Recortar</a>
             </a>
           </td>
         </tr>
