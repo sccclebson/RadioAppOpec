@@ -163,27 +163,40 @@ def play_audio():
 @bp_radio.route("/radio/<radio_key>/recortar", methods=["GET", "POST"])
 @login_required
 def recortar_audio(radio_key):
+    from urllib.parse import unquote
+
     radios_cfg = carregar_radios_config()
     radio = radios_cfg.get(radio_key)
     if not radio:
         flash("Rádio não encontrada.", "danger")
         return redirect(url_for("radio.select_radio"))
 
+    # --- Modo GET: abre tela de recorte ---
     if request.method == "GET":
         caminho = request.args.get("path", "")
-        if not caminho or not os.path.isfile(caminho):
-            from urllib.parse import unquote
-            caminho = unquote(caminho).replace("/", "\\")
-            flash("Arquivo inválido.", "danger")
-            return redirect(url_for("radio.selecionar_radio", radio_key=radio_key))
-        return render_template("recortar_audio.html", radio={"key": radio_key, **radio}, path=caminho)
+        caminho = unquote(caminho).replace("/", "\\")
+        print(f"🎬 [RECORTE] Caminho recebido: {caminho}")
 
+        if not os.path.isfile(caminho):
+            flash("Arquivo inválido ou não encontrado.", "danger")
+            return redirect(url_for("radio.selecionar_radio", radio_key=radio_key))
+
+        nome_arquivo = os.path.basename(caminho)
+        return render_template(
+            "recortar_audio.html",
+            radio={"key": radio_key, **radio},
+            path=caminho,
+            nome_arquivo=nome_arquivo,
+        )
+
+    # --- Modo POST: processa recorte ---
     caminho = request.form.get("path")
     ini = request.form.get("inicio", "00:00")
     fim = request.form.get("fim", "00:30")
 
     if not caminho or not os.path.isfile(caminho):
         abort(403)
+
 
     def to_ms(hhmmss):
         parts = [int(p) for p in hhmmss.split(":")]

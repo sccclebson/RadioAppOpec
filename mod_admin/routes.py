@@ -114,6 +114,11 @@ from mod_config.models import carregar_radios_config
 @admin_required
 def status_cache():
     """Exibe o status do cache de áudios."""
+    from datetime import datetime
+    from mod_radio.audio_cache import CACHE_AUDIOS, CACHE_TIMESTAMP, carregar_cache
+
+    carregar_cache()  # 🔄 recarrega dados salvos do disco
+
     radios_cfg = carregar_radios_config()
     agora = datetime.now()
     status = []
