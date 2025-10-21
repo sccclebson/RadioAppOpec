@@ -26,7 +26,6 @@ env/
 # 🗄️ Bancos de dados e dados locais
 # =========================================
 var/
-.db
 instance/
 uploads/
 *.log
