@@ -7,6 +7,9 @@ from mod_config import bp_config
 from mod_config.models import ConfigSistema
 from mod_radio.audio_cache import iniciar_cache_automatico
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 # ============================================================
 # 🎛️ Criação da aplicação Flask

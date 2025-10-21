@@ -41,7 +41,6 @@
       font-size: 15px;
     }
 
-
     .sidebar a:hover,
     .sidebar a.active {
       background-color: #0d6efd;
@@ -55,7 +54,16 @@
       transition: margin-left 0.3s ease;
     }
 
-    /* Responsivo - sidebar recolhe */
+    .submenu {
+      padding-left: 1.8rem;
+      font-size: 14px;
+    }
+
+    .submenu a {
+      padding: 6px 20px;
+    }
+
+    /* Responsivo */
     @media (max-width: 991px) {
       .sidebar {
         left: -250px;
@@ -68,20 +76,6 @@
       .content {
         margin-left: 0;
       }
-
-      .footer {
-        margin-left: 0;
-      }
-    }
-
-    .navbar-toggler {
-      border: none;
-      color: white;
-      font-size: 1.3rem;
-    }
-
-    .navbar-brand {
-      font-weight: bold;
     }
 
     footer {
@@ -89,7 +83,6 @@
       font-size: 0.85rem;
       color: #6c757d;
       margin-top: 30px;
-
     }
   </style>
 </head>
@@ -103,7 +96,6 @@
       </button>
       <span class="navbar-brand mb-0 h5">
         <i class="bi bi-speedometer2"></i> Painel Administrativo
-        <!-- <small class="text-secondary d-block fs-6">Gerenciamento de usuários e logins</small> -->
       </span>
       <div class="d-flex align-items-center">
         <span class="text-white small me-3">
@@ -130,28 +122,49 @@
     <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
       <i class="bi bi-house-door"></i> Dashboard
     </a>
+
     <a href="{{ url_for('admin.status_cache') }}"
       class="{% if request.endpoint == 'admin.status_cache' %}active{% endif %}">
       <i class="bi bi-brain"></i> Status do Cache
     </a>
+
     <a href="{{ url_for('admin.usuarios') }}" class="{% if request.endpoint == 'admin.usuarios' %}active{% endif %}">
       <i class="bi bi-people"></i> Usuários
     </a>
+
     <a href="{{ url_for('admin.logins') }}" class="{% if request.endpoint == 'admin.logins' %}active{% endif %}">
       <i class="bi bi-list-check"></i> Logins
     </a>
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('bp_config.dashboard') }}">
-        <i class="bi bi-gear"></i> Configurações
-      </a>
-    </li>
 
+    <a href="{{ url_for('bp_config.dashboard') }}"
+      class="{% if 'bp_config' in request.endpoint %}active{% endif %}">
+      <i class="bi bi-gear"></i> Configurações
+    </a>
+
+    <!-- SUBMENU CONFIGURAÇÕES -->
+    <div class="submenu">
+      <a href="{{ url_for('bp_config.config_sistema') }}"
+        class="{% if request.endpoint == 'bp_config.config_sistema' %}active{% endif %}">
+        <i class="bi bi-sliders"></i> Sistema
+      </a>
+      <a href="{{ url_for('bp_config.config_ldap') }}"
+        class="{% if request.endpoint == 'bp_config.config_ldap' %}active{% endif %}">
+        <i class="bi bi-shield-lock"></i> LDAP
+      </a>
+      <a href="{{ url_for('bp_config.radios') }}"
+        class="{% if request.endpoint == 'bp_config.radios' %}active{% endif %}">
+        <i class="bi bi-broadcast-pin"></i> Rádios
+      </a>
+      <a href="{{ url_for('bp_config.config_google_drive') }}"
+        class="{% if request.endpoint == 'bp_config.config_google_drive' %}active{% endif %}">
+        <i class="bi bi-google"></i> Google Drive
+      </a>
+    </div>
   </div>
 
   <!-- CONTEÚDO -->
   <div class="content">
-    {% block content %}
-    {% endblock %}
+    {% block content %}{% endblock %}
     <footer>
       <hr>
       Sistema de Rádios — desenvolvido por Clebson Castilho
@@ -162,7 +175,6 @@
   <script>
     const sidebar = document.getElementById('sidebar');
     const toggleButton = document.getElementById('menu-toggle');
-
     if (toggleButton) {
       toggleButton.addEventListener('click', () => {
         sidebar.classList.toggle('show');
@@ -170,5 +182,4 @@
     }
   </script>
 </body>
-
 </html>

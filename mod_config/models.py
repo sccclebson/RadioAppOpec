@@ -77,7 +77,7 @@ class ConfigLDAP:
 
 
 # ============================================================
-# 📻 CONFIGURAÇÕES DE RÁDIOS
+# 📻 CONFIGURAÇÕES DE RÁDIOS (com Drive)
 # ============================================================
 class ConfigRadio:
     @staticmethod
@@ -104,15 +104,20 @@ class ConfigRadio:
         with _conn() as c:
             c.execute("""
                 INSERT INTO tb_radios
-                (chave, nome, pasta_base, extensao, parse_nome, ativa, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                (chave, nome, pasta_base, extensao, parse_nome, ativa,
+                 tipo_pasta, drive_folder_id, drive_folder_name,
+                 created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             """, (
                 data.get('chave'),
                 data.get('nome'),
                 data.get('pasta_base'),
                 data.get('extensao', '.mp3'),
                 data.get('parse_nome'),
-                1 if str(data.get('ativa', '1')).lower() in ('1', 'on', 'true') else 0
+                1 if str(data.get('ativa', '1')).lower() in ('1', 'on', 'true') else 0,
+                data.get('tipo_pasta', 'local'),
+                data.get('drive_folder_id'),
+                data.get('drive_folder_name')
             ))
 
     @staticmethod
@@ -120,7 +125,8 @@ class ConfigRadio:
         with _conn() as c:
             c.execute("""
                 UPDATE tb_radios
-                SET chave=?, nome=?, pasta_base=?, extensao=?, parse_nome=?, ativa=?, updated_at=datetime('now')
+                SET chave=?, nome=?, pasta_base=?, extensao=?, parse_nome=?, ativa=?,
+                    tipo_pasta=?, drive_folder_id=?, drive_folder_name=?, updated_at=datetime('now')
                 WHERE id_radio=?
             """, (
                 data.get('chave'),
@@ -129,6 +135,9 @@ class ConfigRadio:
                 data.get('extensao', '.mp3'),
                 data.get('parse_nome'),
                 1 if str(data.get('ativa', '1')).lower() in ('1', 'on', 'true') else 0,
+                data.get('tipo_pasta', 'local'),
+                data.get('drive_folder_id'),
+                data.get('drive_folder_name'),
                 id_radio
             ))
 
@@ -154,9 +163,10 @@ def carregar_radios_config() -> Dict[str, Dict]:
     print(f"🧩 Sistema detectado: {sistema}")
 
     for r in ConfigRadio.get_ativas():
-        pasta = r.get("pasta_base") or ""
-        if not pasta or pasta.lower() in ("none", "null"):
-            pasta = os.path.join(base_dir, f"{r['chave']}_fm")
+        if r.get("tipo_pasta") == "drive":
+            pasta = f"[Google Drive] {r.get('drive_folder_name') or 'Sem pasta vinculada'}"
+        else:
+            pasta = r.get("pasta_base") or os.path.join(base_dir, f"{r['chave']}_fm")
 
         pasta = os.path.normpath(pasta)
         cfg[r["chave"]] = {
@@ -169,3 +179,35 @@ def carregar_radios_config() -> Dict[str, Dict]:
         print(f"📂 {r['nome']} → {pasta}")
 
     return cfg
+
+
+# ============================================================
+# ☁️ CONFIGURAÇÃO GOOGLE DRIVE
+# ============================================================
+class ConfigGoogleDrive:
+    @staticmethod
+    def get() -> Optional[Dict]:
+        with _conn() as c:
+            cur = c.execute("SELECT * FROM tb_config_drive ORDER BY id_config DESC LIMIT 1")
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    @staticmethod
+    def save(client_id: str, client_secret: str, access_token: Optional[str] = None,
+             refresh_token: Optional[str] = None, token_expiry: Optional[str] = None,
+             user_email: Optional[str] = None):
+        with _conn() as c:
+            c.execute("""
+                INSERT INTO tb_config_drive
+                (client_id, client_secret, access_token, refresh_token, token_expiry, user_email, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            """, (client_id, client_secret, access_token, refresh_token, token_expiry, user_email))
+
+    @staticmethod
+    def update_tokens(access_token: str, refresh_token: str, token_expiry: str, user_email: str):
+        with _conn() as c:
+            c.execute("""
+                UPDATE tb_config_drive
+                SET access_token=?, refresh_token=?, token_expiry=?, user_email=?, updated_at=datetime('now')
+                WHERE id_config = (SELECT id_config FROM tb_config_drive ORDER BY id_config DESC LIMIT 1)
+            """, (access_token, refresh_token, token_expiry, user_email))

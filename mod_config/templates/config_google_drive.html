@@ -1,0 +1,38 @@
+{% extends "admin_base.html" %}
+{% block title %}Integração Google Drive{% endblock %}
+{% block content %}
+
+<div class="container py-4">
+  <h3><i class="bi bi-google"></i> Integração com Google Drive</h3>
+  <hr>
+
+  <form method="POST">
+    <div class="mb-3">
+      <label for="client_id" class="form-label">Client ID</label>
+      <input type="text" class="form-control" id="client_id" name="client_id"
+             value="{{ config['client_id'] if config else '' }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="client_secret" class="form-label">Client Secret</label>
+      <input type="text" class="form-control" id="client_secret" name="client_secret"
+             value="{{ config['client_secret'] if config else '' }}" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Salvar Credenciais</button>
+    {% if config and config['client_id'] and config['client_secret'] %}
+      <a href="{{ url_for('bp_config.google_drive_connect') }}" class="btn btn-success ms-2">
+        <i class="bi bi-google"></i> Conectar ao Google Drive
+      </a>
+    {% endif %}
+  </form>
+
+  {% if config and config['user_email'] %}
+    <div class="alert alert-success mt-4">
+      ✅ Conectado como <b>{{ config.get("user_email", "desconhecido") }}</b>
+      <br>Token expira em: {{ config['token_expiry'] }}
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

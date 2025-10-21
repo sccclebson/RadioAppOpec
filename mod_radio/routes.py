@@ -1,16 +1,14 @@
-from flask import (
-    Blueprint, render_template, request, jsonify,
-    send_file, redirect, url_for, flash, abort, Response
-)
+from flask import Blueprint, render_template, request, jsonify, send_file, redirect, url_for, flash, abort, Response
 from datetime import datetime
 import os
 import io
 from pydub import AudioSegment
 
-from mod_auth.utils import login_required
+from mod_auth.utils import login_required, admin_required
 from .audio_utils import listar_audios
 from mod_radio.audio_cache import obter_cache, atualizar_cache
-from mod_config.models import carregar_radios_config, ConfigSistema
+from mod_config.models import carregar_radios_config, ConfigSistema, ConfigGoogleDrive
+from mod_config.google_drive_utils import build_drive_service
 
 bp_radio = Blueprint("radio", __name__, template_folder="templates")
 
@@ -20,16 +18,6 @@ bp_radio = Blueprint("radio", __name__, template_folder="templates")
 def get_radios_config():
     """Carrega o dicionário de rádios a partir da configuração."""
     return carregar_radios_config()
-
-
-def _is_subpath(path, base):
-    """Garante que o arquivo pertence à pasta base da rádio (segurança)."""
-    try:
-        path = os.path.realpath(path)
-        base = os.path.realpath(base)
-        return os.path.commonpath([path, base]) == base
-    except Exception:
-        return False
 
 
 # -------------------------------------------------------------------------
@@ -43,7 +31,7 @@ def select_radio():
 
 
 # -------------------------------------------------------------------------
-# LISTAR ÁUDIOS
+# LISTAR ÁUDIOS (LOCAL + DRIVE)
 # -------------------------------------------------------------------------
 @bp_radio.route('/radio/<radio_key>')
 @login_required
@@ -59,6 +47,82 @@ def selecionar_radio(radio_key):
     hora_fim = request.args.get('hora_fim')
     page = int(request.args.get('page', 1))
 
+    # --- Detectar se é rádio vinculada ao Google Drive ---
+    if "[Google Drive]" in radio.get("pasta_base", ""):
+        try:
+            config = ConfigGoogleDrive.get()
+            if not config:
+                flash("Configuração do Google Drive não encontrada.", "warning")
+                return render_template("lista_audios.html", radio={'key': radio_key, **radio}, audios=[])
+
+            service = build_drive_service(config)
+
+            # Busca ID da pasta do Drive associada à rádio
+            from mod_config.models import ConfigRadio
+            from googleapiclient.errors import HttpError
+            radio_db = None
+            try:
+                import sqlite3
+                from pathlib import Path
+                db_path = Path(__file__).resolve().parents[1] / "usuarios.db"
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                cur = conn.execute("SELECT drive_folder_id FROM tb_radios WHERE chave=?", (radio_key,))
+                row = cur.fetchone()
+                radio_db = dict(row) if row else None
+                conn.close()
+            except Exception as e:
+                print("❌ Erro ao obter ID do Drive no banco:", e)
+
+            folder_id = radio_db.get("drive_folder_id") if radio_db else None
+            if not folder_id:
+                flash("Pasta do Drive não configurada para esta rádio.", "warning")
+                return render_template("lista_audios.html", radio={'key': radio_key, **radio}, audios=[])
+
+            # --- Busca os arquivos da pasta do Drive ---
+            results = service.files().list(
+                q=f"'{folder_id}' in parents and trashed=false and mimeType contains 'audio/'",
+                fields="files(id, name, mimeType, size, modifiedTime)",
+                orderBy="modifiedTime desc"
+            ).execute()
+
+            drive_files = results.get("files", [])
+            audios = []
+            for f in drive_files:
+                nome = f.get("name")
+                modificado = f.get("modifiedTime")
+                tamanho = int(f.get("size", 0)) / 1024 if f.get("size") else 0
+                audios.append({
+                    "nome": nome,
+                    "datahora": datetime.strptime(modificado, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d/%m/%Y %H:%M:%S"),
+                    "tamanho": f"{tamanho:,.0f} KB",
+                    "caminho": f"https://drive.google.com/uc?id={f['id']}&export=download"
+                })
+
+            total = len(audios)
+            por_pagina = int(ConfigSistema.get().get("max_por_pagina", 20))
+            inicio = (page - 1) * por_pagina
+            fim = inicio + por_pagina
+            pagina_audios = audios[inicio:fim]
+            total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+
+            return render_template(
+                "lista_audios.html",
+                radio={'key': radio_key, **radio},
+                audios=pagina_audios,
+                pagina_atual=page,
+                total_paginas=total_paginas,
+                total=total,
+                filtros={'data': data_str or '', 'hora_ini': hora_ini or '', 'hora_fim': hora_fim or ''},
+                drive_mode=True
+            )
+
+        except Exception as e:
+            print("❌ Erro ao listar Google Drive:", e)
+            flash("Erro ao listar arquivos do Google Drive.", "danger")
+            return render_template("lista_audios.html", radio={'key': radio_key, **radio}, audios=[], drive_mode=True)
+
+    # --- Rádio local (mantém o comportamento anterior) ---
     data = None
     if data_str:
         try:
@@ -70,7 +134,7 @@ def selecionar_radio(radio_key):
     if not todos_audios:
         todos_audios = listar_audios(radio, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
 
-    por_pagina = int(ConfigSistema.get().get('max_por_pagina', 20))
+    por_pagina = int(ConfigSistema.get().get("max_por_pagina", 20))
     por_pagina = max(1, min(100, por_pagina))
     total = len(todos_audios)
     inicio = (page - 1) * por_pagina
@@ -79,77 +143,28 @@ def selecionar_radio(radio_key):
     total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
 
     return render_template(
-        'lista_audios.html',
+        "lista_audios.html",
         radio={'key': radio_key, **radio},
         audios=pagina_audios,
         pagina_atual=page,
         total_paginas=total_paginas,
         total=total,
-        filtros={'data': data_str or '', 'hora_ini': hora_ini or '', 'hora_fim': hora_fim or ''}
+        filtros={'data': data_str or '', 'hora_ini': hora_ini or '', 'hora_fim': hora_fim or ''},
+        drive_mode=False
     )
 
 
 # -------------------------------------------------------------------------
-# API JSON - LISTAR ÁUDIOS (usado na tela lista_audios.html via fetch)
-# -------------------------------------------------------------------------
-@bp_radio.route('/radio/audios/data')
-@login_required
-def api_listar_audios():
-    radio_key = request.args.get('radio')
-    data_str = request.args.get('data')
-    hora_ini = request.args.get('hora_ini')
-    hora_fim = request.args.get('hora_fim')
-    page = int(request.args.get('page', 1))
-
-    radios_cfg = get_radios_config()
-    radio = radios_cfg.get(radio_key)
-    if not radio:
-        return jsonify({"error": "Rádio não encontrada."}), 404
-
-    data = None
-    if data_str:
-        try:
-            data = datetime.strptime(data_str, "%Y-%m-%d").date()
-        except ValueError:
-            pass
-
-    todos_audios = listar_audios(radio, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
-
-    por_pagina = int(ConfigSistema.get().get('max_por_pagina', 20))
-    por_pagina = max(1, min(100, por_pagina))
-    total = len(todos_audios)
-    inicio = (page - 1) * por_pagina
-    fim = inicio + por_pagina
-    pagina_audios = todos_audios[inicio:fim]
-    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
-
-    return jsonify({
-        "pagina_atual": page,
-        "total_paginas": total_paginas,
-        "total": total,
-        "audios": pagina_audios
-    })
-
-
-# -------------------------------------------------------------------------
-# STREAM / PLAYER DE ÁUDIO (para WaveSurfer)
+# STREAM / PLAYER (LOCAL)
 # -------------------------------------------------------------------------
 @bp_radio.route("/radio/play")
 def play_audio():
-    """Serve o áudio MP3/WAV para o WaveSurfer.js com suporte a streaming parcial."""
-    print("\n====================== DEBUG /radio/play ======================")
-    print(f"🔹 request.url = {request.url}")
-    print(f"🔹 request.args = {dict(request.args)}")
-
     caminho_raw = request.args.get("path")
     if not caminho_raw:
         return "Caminho inválido", 400
 
     caminho_abs = os.path.abspath(caminho_raw)
-    print(f"📂 Caminho final resolvido: {caminho_abs}")
-
     if not os.path.isfile(caminho_abs):
-        print(f"❌ Arquivo não encontrado: {caminho_abs}")
         return f"Arquivo não encontrado: {caminho_abs}", 404
 
     file_size = os.path.getsize(caminho_abs)
@@ -161,12 +176,10 @@ def play_audio():
             yield f.read(length)
 
     if range_header:
-        # Exemplo: bytes=0-1023
         byte_range = range_header.replace("bytes=", "").split("-")
         start = int(byte_range[0])
         end = int(byte_range[1]) if byte_range[1] else file_size - 1
         length = end - start + 1
-        print(f"📦 Enviando range: {start}-{end}/{file_size}")
         resp = Response(generate(caminho_abs, start, length), status=206, mimetype="audio/mpeg")
         resp.headers.add("Content-Range", f"bytes {start}-{end}/{file_size}")
         resp.headers.add("Accept-Ranges", "bytes")
@@ -176,9 +189,6 @@ def play_audio():
 
     resp.headers.add("Cache-Control", "no-store")
     resp.headers.add("Access-Control-Allow-Origin", "*")
-
-    print("✅ [PLAY] Enviando áudio para WaveSurfer com suporte a streaming.")
-    print("===============================================================\n")
     return resp
 
 
@@ -194,7 +204,6 @@ def recortar_audio(radio_key):
         flash("Rádio não encontrada.", "danger")
         return redirect(url_for('radio.select_radio'))
 
-    # GET → exibe tela de recorte
     if request.method == 'GET':
         caminho = request.args.get('path', '')
         if not caminho or not os.path.isfile(caminho):
@@ -202,7 +211,6 @@ def recortar_audio(radio_key):
             return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
         return render_template('recortar_audio.html', radio={'key': radio_key, **radio}, path=caminho)
 
-    # POST → realiza o recorte
     caminho = request.form.get('path')
     ini = request.form.get('inicio', '00:00')
     fim = request.form.get('fim', '00:30')
@@ -234,25 +242,16 @@ def recortar_audio(radio_key):
         return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
 
 
-
-
-# ============================================================
-# 🔄 Atualização manual de cache (usada pelo painel admin)
-# ============================================================
-from flask import redirect, url_for, flash
-from mod_radio.audio_cache import atualizar_cache
-from mod_auth.utils import admin_required
-
+# -------------------------------------------------------------------------
+# ATUALIZAÇÃO DE CACHE MANUAL
+# -------------------------------------------------------------------------
 @bp_radio.route('/radio/<radio_key>/atualizar-cache')
 @admin_required
 def atualizar_cache_manual(radio_key):
-    """Força a atualização do cache de uma rádio específica."""
     try:
         atualizar_cache(radio_key)
         flash(f"Cache da rádio '{radio_key}' atualizado com sucesso.", "success")
-        print(f"🔄 [ADMIN] Cache manual solicitado por admin para {radio_key}")
-
+        print(f"🔄 [ADMIN] Cache manual solicitado para {radio_key}")
     except Exception as e:
         flash(f"Erro ao atualizar cache da rádio '{radio_key}': {e}", "danger")
-
     return redirect(url_for('admin.status_cache'))

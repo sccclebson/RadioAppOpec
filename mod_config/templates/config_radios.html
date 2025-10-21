@@ -2,51 +2,137 @@
 {% block title %}Config - Rádios{% endblock %}
 {% block content %}
 <div class="container py-4">
-  <h4>Rádios</h4>
+  <h4 class="mb-3">Rádios</h4>
 
-  <form action="{{ url_for('bp_config.add_radio') }}" method="post" class="mb-4">
-    <div class="row g-2">
-      <div class="col-md-2"><input name="chave" class="form-control" placeholder="chave (ex: clube)" required></div>
-      <div class="col-md-3"><input name="nome" class="form-control" placeholder="Nome da rádio" required></div>
-      <div class="col-md-4"><input name="pasta_base" class="form-control" placeholder="/mnt/clube_fm" required></div>
-      <div class="col-md-1"><input name="extensao" class="form-control" value=".mp3"></div>
-      <div class="col-md-2"><input name="parse_nome" class="form-control" placeholder="parse (opcional)"></div>
-      <div class="col-md-12 form-check mt-2">
-        <input class="form-check-input" type="checkbox" name="ativa" checked>
-        <label class="form-check-label">Ativa</label>
-        <button type="button" id="btnTestPath" class="btn btn-sm btn-outline-secondary ms-3">Testar pasta</button>
-        <span id="pathMsg" class="ms-2"></span>
+  <form action="{{ url_for('bp_config.add_radio') }}" method="post" class="mb-4 bg-white p-3 rounded shadow-sm border">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Chave</label>
+        <input name="chave" class="form-control" placeholder="ex: clube" required>
       </div>
-      <div class="col-md-12 mt-2"><button class="btn btn-success">Adicionar</button></div>
+
+      <div class="col-md-3">
+        <label class="form-label small mb-0">Nome da Rádio</label>
+        <input name="nome" class="form-control" placeholder="Nome completo" required>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Tipo de Pasta</label>
+        <select name="tipo_pasta" id="tipoPasta" class="form-select">
+          <option value="local" selected>Local</option>
+          <option value="drive">Google Drive</option>
+        </select>
+      </div>
+
+      <div class="col-md-3" id="divLocal">
+        <label class="form-label small mb-0">Pasta Local</label>
+        <input name="pasta_base" class="form-control" placeholder="/mnt/clube_fm">
+      </div>
+
+      <div class="col-md-3 d-none" id="divDrive">
+        <label class="form-label small mb-0">Pasta do Drive</label>
+        <select name="drive_folder_id" id="driveFolders" class="form-select">
+          <option>Google Drive não conectado.</option>
+        </select>
+      </div>
+
+      <div class="col-md-1">
+        <label class="form-label small mb-0">Ext.</label>
+        <input name="extensao" class="form-control" value=".mp3">
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Parse (opcional)</label>
+        <input name="parse_nome" class="form-control" placeholder="">
+      </div>
+
+      <div class="col-md-12 d-flex align-items-center mt-2">
+        <div class="form-check me-3">
+          <input class="form-check-input" type="checkbox" name="ativa" checked>
+          <label class="form-check-label">Ativa</label>
+        </div>
+        <button type="button" id="btnTestPath" class="btn btn-outline-secondary btn-sm me-2">
+          <i class="bi bi-search"></i> Testar pasta
+        </button>
+        <span id="pathMsg" class="small"></span>
+        <button class="btn btn-success btn-sm ms-auto">
+          <i class="bi bi-plus-circle"></i> Adicionar
+        </button>
+      </div>
     </div>
   </form>
 
-  <table class="table table-striped">
-    <thead><tr><th>ID</th><th>Chave</th><th>Nome</th><th>Pasta</th><th>Ext.</th><th>Ativa</th><th>Ações</th></tr></thead>
-    <tbody>
-      {% for r in radios %}
-      <tr>
-        <form action="{{ url_for('bp_config.edit_radio', id_radio=r.id_radio) }}" method="post">
-          <td>{{ r.id_radio }}</td>
-          <td><input name="chave" class="form-control form-control-sm" value="{{ r.chave }}"></td>
-          <td><input name="nome" class="form-control form-control-sm" value="{{ r.nome }}"></td>
-          <td><input name="pasta_base" class="form-control form-control-sm" value="{{ r.pasta_base }}"></td>
-          <td><input name="extensao" class="form-control form-control-sm" value="{{ r.extensao }}"></td>
-          <td class="text-center"><input type="checkbox" name="ativa" {% if r.ativa %}checked{% endif %}></td>
-          <td class="d-flex gap-1">
-            <button class="btn btn-sm btn-primary">Salvar</button>
-        </form>
-            <form action="{{ url_for('bp_config.delete_radio', id_radio=r.id_radio) }}" method="post" onsubmit="return confirm('Remover esta rádio?')">
-              <button class="btn btn-sm btn-danger">Excluir</button>
-            </form>
-          </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width:5%">ID</th>
+          <th style="width:10%">Chave</th>
+          <th style="width:20%">Nome</th>
+          <th style="width:30%">Pasta</th>
+          <th style="width:10%">Tipo</th>
+          <th style="width:10%">Ativa</th>
+          <th style="width:15%">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in radios %}
+        <tr>
+          <form action="{{ url_for('bp_config.edit_radio', id_radio=r.id_radio) }}" method="post">
+            <td>{{ r.id_radio }}</td>
+            <td><input name="chave" class="form-control form-control-sm" value="{{ r.chave }}"></td>
+            <td><input name="nome" class="form-control form-control-sm" value="{{ r.nome }}"></td>
+            <td><input name="pasta_base" class="form-control form-control-sm" value="{{ r.pasta_base }}"></td>
+            <td>{{ r.tipo_pasta }}</td>
+            <td class="text-center"><input type="checkbox" name="ativa" {% if r.ativa %}checked{% endif %}></td>
+            <td class="d-flex gap-1">
+              <button class="btn btn-sm btn-primary">Salvar</button>
+          </form>
+              <form action="{{ url_for('bp_config.delete_radio', id_radio=r.id_radio) }}" method="post" onsubmit="return confirm('Remover esta rádio?')">
+                <button class="btn btn-sm btn-danger">Excluir</button>
+              </form>
+            </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <script>
+const tipoSelect = document.getElementById('tipoPasta');
+const divLocal = document.getElementById('divLocal');
+const divDrive = document.getElementById('divDrive');
+const driveSelect = document.getElementById('driveFolders');
+
+tipoSelect.addEventListener('change', async () => {
+  const tipo = tipoSelect.value;
+  if (tipo === 'drive') {
+    divLocal.classList.add('d-none');
+    divDrive.classList.remove('d-none');
+
+    const resp = await fetch('{{ url_for("bp_config.google_drive_folders") }}');
+    const data = await resp.json();
+
+    driveSelect.innerHTML = '';
+    if (data.ok) {
+      data.pastas.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        driveSelect.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.textContent = data.msg || 'Erro ao carregar pastas';
+      driveSelect.appendChild(opt);
+    }
+  } else {
+    divLocal.classList.remove('d-none');
+    divDrive.classList.add('d-none');
+  }
+});
+
 document.getElementById('btnTestPath')?.addEventListener('click', async () => {
   const input = document.querySelector('input[name="pasta_base"]');
   const form = new FormData();
@@ -55,7 +141,7 @@ document.getElementById('btnTestPath')?.addEventListener('click', async () => {
   const data = await r.json();
   const el = document.getElementById('pathMsg');
   el.textContent = data.mensagem;
-  el.className = data.ok ? 'text-success' : 'text-danger';
+  el.className = data.ok ? 'text-success small' : 'text-danger small';
 });
 </script>
 {% endblock %}
