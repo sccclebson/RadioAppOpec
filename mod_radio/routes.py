@@ -36,6 +36,133 @@ def select_radio():
 @bp_radio.route('/radio/<radio_key>')
 @login_required
 def selecionar_radio(radio_key):
+    """
+    Exibe a lista de áudios da rádio selecionada.
+    Suporta rádios locais e rádios do Google Drive (busca recursiva em subpastas).
+    """
+    radios_cfg = get_radios_config()
+    radio = radios_cfg.get(radio_key)
+    if not radio:
+        flash("Rádio não encontrada.", "danger")
+        return redirect(url_for('radio.select_radio'))
+
+    data_str = request.args.get('data')
+    hora_ini = request.args.get('hora_ini')
+    hora_fim = request.args.get('hora_fim')
+    page = int(request.args.get('page', 1))
+
+    # Detectar se é rádio vinculada ao Google Drive
+    if "[Google Drive]" in radio.get("pasta_base", "") or radio.get("tipo_pasta") == "drive":
+        try:
+            config = ConfigGoogleDrive.get()
+            if not config:
+                flash("Configuração do Google Drive não encontrada.", "warning")
+                return render_template("lista_audios.html", radio={'key': radio_key, **radio}, audios=[])
+
+            service = build_drive_service(config)
+
+            # Busca o ID da pasta do Drive no banco
+            import sqlite3
+            from pathlib import Path
+            db_path = Path(__file__).resolve().parents[1] / "usuarios.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT drive_folder_id FROM tb_radios WHERE chave=?", (radio_key,)).fetchone()
+            conn.close()
+
+            folder_id = row["drive_folder_id"] if row else None
+            if not folder_id:
+                flash("Pasta do Drive não configurada para esta rádio.", "warning")
+                return render_template("lista_audios.html", radio={'key': radio_key, **radio}, audios=[])
+
+            # --- busca recursiva ---
+            def listar_arquivos_drive_recursivo(folder_id, extensoes=(".mp3", ".wav")):
+                encontrados = []
+                try:
+                    query = f"'{folder_id}' in parents and trashed=false"
+                    results = service.files().list(
+                        q=query,
+                        fields="files(id, name, mimeType, size, modifiedTime)",
+                        orderBy="modifiedTime desc"
+                    ).execute()
+                    for f in results.get("files", []):
+                        mime = f.get("mimeType", "")
+                        nome = f.get("name", "")
+                        if mime == "application/vnd.google-apps.folder":
+                            encontrados.extend(listar_arquivos_drive_recursivo(f["id"], extensoes))
+                        elif nome.lower().endswith(extensoes):
+                            encontrados.append(f)
+                except Exception as e:
+                    print(f"❌ Erro ao listar subpastas do Drive: {e}")
+                return encontrados
+
+            drive_files = listar_arquivos_drive_recursivo(folder_id)
+            audios = []
+            for f in drive_files:
+                nome = f.get("name")
+                modificado = f.get("modifiedTime")
+                tamanho = int(f.get("size", 0)) / 1024 if f.get("size") else 0
+                audios.append({
+                    "nome": nome,
+                    "datahora": datetime.strptime(modificado, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d/%m/%Y %H:%M:%S"),
+                    "tamanho": f"{tamanho:,.0f} KB",
+                    "caminho": f"https://drive.google.com/uc?id={f['id']}&export=download"
+                })
+
+            total = len(audios)
+            por_pagina = int(ConfigSistema.get().get("max_por_pagina", 20))
+            inicio = (page - 1) * por_pagina
+            fim = inicio + por_pagina
+            pagina_audios = audios[inicio:fim]
+            total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+
+            return render_template(
+                "lista_audios.html",
+                radio={'key': radio_key, **radio},
+                audios=pagina_audios,
+                pagina_atual=page,
+                total_paginas=total_paginas,
+                total=total,
+                filtros={'data': data_str or '', 'hora_ini': hora_ini or '', 'hora_fim': hora_fim or ''},
+                drive_mode=True
+            )
+
+        except Exception as e:
+            print("❌ Erro ao listar Google Drive:", e)
+            flash("Erro ao listar arquivos do Google Drive.", "danger")
+            return render_template("lista_audios.html", radio={'key': radio_key, **radio}, audios=[], drive_mode=True)
+
+    # Rádio local (mantém o comportamento anterior)
+    data = None
+    if data_str:
+        try:
+            data = datetime.strptime(data_str, "%Y-%m-%d").date()
+        except ValueError:
+            data = None
+
+    todos_audios = obter_cache(radio_key)
+    if not todos_audios:
+        todos_audios = listar_audios(radio, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
+
+    por_pagina = int(ConfigSistema.get().get("max_por_pagina", 20))
+    por_pagina = max(1, min(100, por_pagina))
+    total = len(todos_audios)
+    inicio = (page - 1) * por_pagina
+    fim = inicio + por_pagina
+    pagina_audios = todos_audios[inicio:fim]
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+
+    return render_template(
+        "lista_audios.html",
+        radio={'key': radio_key, **radio},
+        audios=pagina_audios,
+        pagina_atual=page,
+        total_paginas=total_paginas,
+        total=total,
+        filtros={'data': data_str or '', 'hora_ini': hora_ini or '', 'hora_fim': hora_fim or ''},
+        drive_mode=False
+    )
+
     radios_cfg = get_radios_config()
     radio = radios_cfg.get(radio_key)
     if not radio:
@@ -153,6 +280,128 @@ def selecionar_radio(radio_key):
         drive_mode=False
     )
 
+@bp_radio.route("/radio/audios/data")
+@login_required
+def audios_data():
+    """
+    EndPoint usado pelo front-end (AJAX) para listar áudios.
+    Aceita: ?radio=<key>&data=YYYY-MM-DD&hora_ini=HH:MM&hora_fim=HH:MM&page=N
+    Retorna JSON com paginação idêntica ao comportamento anterior.
+    """
+    radio_key = request.args.get("radio", "").strip()
+    data_str = request.args.get("data") or ""
+    hora_ini = request.args.get("hora_ini") or ""
+    hora_fim = request.args.get("hora_fim") or ""
+    page = int(request.args.get("page", 1))
+
+    radios_cfg = carregar_radios_config()
+    radio = radios_cfg.get(radio_key)
+    if not radio:
+        return jsonify({"ok": False, "erro": "Rádio não encontrada.", "audios": []}), 404
+
+    # paginação
+    por_pagina = int(ConfigSistema.get().get("max_por_pagina", 20))
+    por_pagina = max(1, min(100, por_pagina))
+
+    # ----------------------------------------------------------
+    # 1) RÁDIO DO GOOGLE DRIVE
+    # ----------------------------------------------------------
+    if radio.get("tipo_pasta") == "drive" or "[Google Drive]" in (radio.get("pasta_base") or ""):
+        try:
+            cfg_drive = ConfigGoogleDrive.get()
+            if not cfg_drive:
+                return jsonify({"ok": False, "erro": "Google Drive não configurado.", "audios": []}), 400
+
+            service = build_drive_service(cfg_drive)
+
+            # Busca o folder_id no banco
+            import sqlite3
+            from pathlib import Path
+            db_path = Path(__file__).resolve().parents[1] / "usuarios.db"
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT drive_folder_id FROM tb_radios WHERE chave=?",
+                (radio_key,)
+            ).fetchone()
+            conn.close()
+
+            folder_id = row["drive_folder_id"] if row else None
+            if not folder_id:
+                return jsonify({"ok": False, "erro": "Pasta do Drive não vinculada a esta rádio.", "audios": []}), 400
+
+            # lista arquivos de áudio no Drive
+            results = service.files().list(
+                q=f"'{folder_id}' in parents and trashed=false and mimeType contains 'audio/'",
+                fields="files(id, name, size, modifiedTime)",
+                orderBy="modifiedTime desc"
+            ).execute()
+
+            files = results.get("files", [])
+            itens = []
+            for f in files:
+                nome = f.get("name") or ""
+                mod = f.get("modifiedTime")
+                # formato ISO do Drive → dd/mm/yyyy HH:MM:SS
+                try:
+                    dt_txt = datetime.strptime(mod, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d/%m/%Y %H:%M:%S")
+                except Exception:
+                    dt_txt = mod or ""
+                tam_kb = 0
+                if f.get("size"):
+                    try:
+                        tam_kb = int(int(f["size"]) / 1024)
+                    except Exception:
+                        tam_kb = 0
+
+                itens.append({
+                    "nome": nome,
+                    "datahora": dt_txt,
+                    "tamanho": f"{tam_kb:,} KB".replace(",", "."),
+                    # link direto para download/stream (se arquivo for público/da sua conta)
+                    "caminho": f"https://drive.google.com/uc?id={f['id']}&export=download",
+                    "drive_id": f["id"],
+                })
+
+            total = len(itens)
+            ini = (page - 1) * por_pagina
+            fim = ini + por_pagina
+            return jsonify({
+                "ok": True,
+                "audios": itens[ini:fim],
+                "pagina_atual": page,
+                "total_paginas": max(1, (total + por_pagina - 1) // por_pagina),
+                "total": total
+            })
+
+        except Exception as e:
+            print("❌ /radio/audios/data (Drive) erro:", e)
+            return jsonify({"ok": False, "erro": "Falha ao listar no Google Drive.", "audios": []}), 500
+
+    # ----------------------------------------------------------
+    # 2) RÁDIO LOCAL (comportamento anterior)
+    # ----------------------------------------------------------
+    # filtros
+    data = None
+    if data_str:
+        try:
+            data = datetime.strptime(data_str, "%Y-%m-%d").date()
+        except ValueError:
+            data = None
+
+    # tenta ler do cache; se vazio, lista direto
+    itens = obter_cache(radio_key) or listar_audios(radio, data=data, hora_ini=hora_ini, hora_fim=hora_fim)
+    total = len(itens)
+    ini = (page - 1) * por_pagina
+    fim = ini + por_pagina
+
+    return jsonify({
+        "ok": True,
+        "audios": itens[ini:fim],
+        "pagina_atual": page,
+        "total_paginas": max(1, (total + por_pagina - 1) // por_pagina),
+        "total": total
+    })
 
 # -------------------------------------------------------------------------
 # STREAM / PLAYER (LOCAL)
