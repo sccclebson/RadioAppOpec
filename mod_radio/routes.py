@@ -6,7 +6,9 @@ from datetime import datetime
 import os
 import io
 import requests
+from uuid import uuid4
 from pydub import AudioSegment
+from googleapiclient.http import MediaIoBaseDownload
 
 from mod_auth.utils import login_required, admin_required
 from mod_radio.audio_cache import obter_cache, atualizar_cache
@@ -21,10 +23,14 @@ from mod_config.google_drive_utils import build_drive_service
 bp_radio = Blueprint("radio", __name__, template_folder="templates")
 
 # -------------------------------------------------------------------------
+# 🔧 CACHE TEMPORÁRIO DE RECURSOS EM MEMÓRIA
+# -------------------------------------------------------------------------
+CACHE_RECORTE_DRIVE = {}  # { temp_id: bytes }
+
+# -------------------------------------------------------------------------
 # 🔧 HELPERS
 # -------------------------------------------------------------------------
 def get_radios_config():
-    """Carrega o dicionário de rádios a partir da configuração."""
     return carregar_radios_config()
 
 
@@ -83,10 +89,6 @@ def selecionar_radio(radio_key):
 @bp_radio.route("/radio/audios/data")
 @login_required
 def audios_data():
-    """
-    Endpoint usado pela interface AJAX para listar áudios.
-    Suporta rádios locais e rádios Google Drive com cache híbrido.
-    """
     radio_key = request.args.get("radio", "").strip()
     data_str = request.args.get("data") or ""
     hora_ini = request.args.get("hora_ini") or ""
@@ -101,7 +103,6 @@ def audios_data():
     por_pagina = int(ConfigSistema.get().get("max_por_pagina", 20))
     por_pagina = max(1, min(100, por_pagina))
 
-    # Tenta obter do cache
     audios = obter_cache(radio_key)
     if not audios:
         print(f"⚠️ Cache vazio para '{radio_key}', atualizando...")
@@ -121,20 +122,31 @@ def audios_data():
     })
 
 
+# -------------------------------------------------------------------------
+# 🔊 PLAYER UNIVERSAL (LOCAL + GOOGLE DRIVE)
+# -------------------------------------------------------------------------
 @bp_radio.route("/radio/play")
 def play_audio():
-    from flask import Response, send_file
-    import io
-    from googleapiclient.http import MediaIoBaseDownload
-    import re
-
     caminho_raw = request.args.get("path")
     if not caminho_raw:
         return "Caminho inválido", 400
 
-    # ☁️ --- STREAM GOOGLE DRIVE ---
+    # 🎯 1) Se o path for um ID de cache de recorte temporário
+    if caminho_raw in CACHE_RECORTE_DRIVE:
+        try:
+            audio_bytes = CACHE_RECORTE_DRIVE[caminho_raw]
+            buffer = io.BytesIO(audio_bytes)
+            buffer.seek(0)
+            print(f"▶️ [PLAY] Reproduzindo áudio da RAM (ID: {caminho_raw})")
+            return Response(buffer, content_type="audio/mpeg")
+        except Exception as e:
+            print(f"❌ [PLAY] Erro ao reproduzir da RAM: {e}")
+            return f"Erro ao reproduzir áudio da memória: {e}", 500
+
+    # ☁️ 2) Caso o caminho seja do Google Drive
     if "drive.google.com" in caminho_raw or "uc?id=" in caminho_raw:
         try:
+            import re
             match = re.search(r"id=([a-zA-Z0-9_-]+)", caminho_raw)
             file_id = match.group(1) if match else None
             if not file_id:
@@ -146,14 +158,13 @@ def play_audio():
 
             service = build_drive_service(cfg_drive)
             request_drive = service.files().get_media(fileId=file_id)
-
             buffer = io.BytesIO()
             downloader = MediaIoBaseDownload(buffer, request_drive, chunksize=1024 * 256)
             done = False
             while not done:
                 status, done = downloader.next_chunk()
                 if status:
-                    print(f"⬇️ Download {int(status.progress() * 100)}%")
+                    print(f"⬇️ [PLAY] Download {int(status.progress() * 100)}%")
 
             buffer.seek(0)
             resp = Response(buffer, content_type="audio/mpeg")
@@ -163,10 +174,10 @@ def play_audio():
             return resp
 
         except Exception as e:
-            print(f"❌ [DRIVE] Erro ao reproduzir do Drive: {e}")
+            print(f"❌ [PLAY] Erro ao reproduzir do Drive: {e}")
             return f"Erro ao reproduzir do Drive: {e}", 500
 
-    # 💽 --- STREAM LOCAL ---
+    # 💽 3) Reproduzir arquivo local
     caminho_abs = os.path.abspath(caminho_raw)
     if not os.path.isfile(caminho_abs):
         return f"Arquivo não encontrado: {caminho_abs}", 404
@@ -196,15 +207,13 @@ def play_audio():
     return resp
 
 
+
 # -------------------------------------------------------------------------
-# ✂️ RECORTE DE ÁUDIO (LOCAL)
+# ✂️ RECORTE DE ÁUDIO (LOCAL + DRIVE via cache em memória)
 # -------------------------------------------------------------------------
 @bp_radio.route('/radio/<radio_key>/recortar', methods=['GET', 'POST'])
 @login_required
 def recortar_audio(radio_key):
-    import io
-    from googleapiclient.http import MediaIoBaseDownload
-
     radios_cfg = get_radios_config()
     radio = radios_cfg.get(radio_key)
     if not radio:
@@ -216,7 +225,7 @@ def recortar_audio(radio_key):
         flash("Caminho inválido.", "danger")
         return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
 
-    # ☁️ --- ARQUIVO DO GOOGLE DRIVE ---
+    # ☁️ --- DRIVE ---
     if caminho.startswith("http"):
         try:
             import re
@@ -232,8 +241,6 @@ def recortar_audio(radio_key):
                 return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
 
             service = build_drive_service(cfg_drive)
-
-            # Baixa o áudio do Drive em memória
             buffer = io.BytesIO()
             request_drive = service.files().get_media(fileId=file_id)
             downloader = MediaIoBaseDownload(buffer, request_drive, chunksize=1024 * 256)
@@ -244,19 +251,26 @@ def recortar_audio(radio_key):
                     print(f"⬇️ [Recorte] Download {int(status.progress() * 100)}%")
 
             buffer.seek(0)
-            # Guarda em sessão temporária (sem gravar no disco)
-            session['drive_temp_audio'] = buffer.getvalue()
-            session['drive_temp_name'] = f"drive_{file_id}.mp3"
 
-            # Redireciona para tela de recorte (simula arquivo local)
-            return render_template('recortar_audio.html', radio={'key': radio_key, **radio}, path=caminho, drive_mode=True)
+            # Armazena em cache de recorte temporário
+            temp_id = str(uuid4())
+            CACHE_RECORTE_DRIVE[temp_id] = buffer.getvalue()
+
+            print(f"✅ [Recorte] Áudio carregado na RAM (ID: {temp_id})")
+
+            return render_template(
+                'recortar_audio.html',
+                radio={'key': radio_key, **radio},
+                path=temp_id,
+                drive_mode=True
+            )
 
         except Exception as e:
             print(f"❌ [DRIVE] Erro ao preparar recorte: {e}")
             flash("Erro ao preparar recorte do Google Drive.", "danger")
             return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
 
-    # 💽 --- ARQUIVO LOCAL ---
+    # 💽 --- LOCAL ---
     if request.method == 'GET':
         if not os.path.isfile(caminho):
             flash("Arquivo inválido.", "danger")
@@ -278,15 +292,16 @@ def recortar_audio(radio_key):
         return 0
 
     try:
-        if caminho.startswith("http"):
-            # Recupera o áudio em memória
-            audio_bytes = session.get('drive_temp_audio')
+        if caminho in CACHE_RECORTE_DRIVE:
+            # Recorte de áudio do Drive
+            audio_bytes = CACHE_RECORTE_DRIVE.get(caminho)
             if not audio_bytes:
-                flash("Sessão expirada. Baixe novamente o arquivo do Drive.", "warning")
+                flash("O arquivo temporário expirou. Baixe novamente do Drive.", "warning")
                 return redirect(url_for('radio.selecionar_radio', radio_key=radio_key))
-
             audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+            del CACHE_RECORTE_DRIVE[caminho]
         else:
+            # Recorte de arquivo local
             audio = AudioSegment.from_file(caminho)
 
         cut = audio[to_ms(ini):to_ms(fim)]
@@ -294,9 +309,7 @@ def recortar_audio(radio_key):
         cut.export(buf, format="mp3")
         buf.seek(0)
 
-        nome_saida = session.get('drive_temp_name', os.path.basename(caminho))
-        saida = f"recorte_{ini.replace(':','')}-{fim.replace(':','')}_{nome_saida}"
-
+        saida = f"recorte_{ini.replace(':','')}-{fim.replace(':','')}.mp3"
         return send_file(buf, as_attachment=True, download_name=saida, mimetype="audio/mpeg")
 
     except Exception as e:
