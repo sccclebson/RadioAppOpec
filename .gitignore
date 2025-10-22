@@ -30,6 +30,8 @@ var/
 instance/
 uploads/
 *.log
+*.db
+.env
 
 # =========================================
 # ⚙️ Configurações e segredos
@@ -55,6 +57,14 @@ __cache__/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Caches e mídia
+cache_local.json
+mod_radio/cache_drive.json
+media_drive/
+uploads/
+*.mp3
+*.wav
 
 # =========================================
 # 🧪 Testes e arquivos auxiliares

@@ -6,7 +6,7 @@
     🎧 Áudios — <span class="text-primary">Radio {{ radio.nome }}</span>
   </h4>
 
-  <!-- Filtros -->
+  <!-- 🔎 Filtros -->
   <form id="formFiltro" class="row g-3 mb-4">
     <div class="col-md-3">
       <label class="form-label">Data</label>
@@ -27,7 +27,7 @@
     </div>
   </form>
 
-  <!-- Tabela -->
+  <!-- 📋 Tabela -->
   <div class="table-responsive">
     <table class="table table-striped align-middle" id="tabelaAudios">
       <thead class="table-dark">
@@ -55,59 +55,64 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("formFiltro");
   const pagDiv = document.getElementById("paginacao");
 
+  const campoData = document.getElementById("filtroData");
+  const campoHoraIni = document.getElementById("filtroHoraIni");
+  const campoHoraFim = document.getElementById("filtroHoraFim");
+
+  const hoje = new Date();
+  const hojeStr = hoje.toISOString().split("T")[0];
+  campoData.value = hojeStr;
+  campoHoraIni.value = "00:00";
+  campoHoraFim.value = "23:59";
+
+  // 🔄 Função para carregar os áudios via AJAX
   async function carregarAudios(page = 1) {
-    const data = document.getElementById("filtroData").value;
-    const horaIni = document.getElementById("filtroHoraIni").value;
-    const horaFim = document.getElementById("filtroHoraFim").value;
-
-    // 🗓️ Define a data de hoje automaticamente
-    const campoData = document.getElementById("filtroData");
-    const hoje = new Date();
-    const hojeStr = hoje.toISOString().split("T")[0]; // Formato YYYY-MM-DD
-    campoData.value = hojeStr;
-
-    // 🔄 Carrega automaticamente os áudios do dia atual
+    const data = campoData.value;
+    const horaIni = campoHoraIni.value;
+    const horaFim = campoHoraFim.value;
 
     tbody.innerHTML = `<tr><td colspan="5" class="text-center">⏳ Carregando...</td></tr>`;
-
     try {
       const url = `/radio/audios/data?radio=${radioKey}&data=${data}&hora_ini=${horaIni}&hora_fim=${horaFim}&page=${page}`;
       const resp = await fetch(url);
       const dataJson = await resp.json();
 
-      if (!dataJson.ok || !dataJson.audios.length) {
+      if (!dataJson.itens || !dataJson.itens.length) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Nenhum áudio encontrado.</td></tr>`;
         pagDiv.innerHTML = "";
         return;
       }
 
       tbody.innerHTML = "";
-      dataJson.audios.forEach(a => {
+      dataJson.itens.forEach(a => {
         const row = document.createElement("tr");
         row.innerHTML = `
           <td>${a.nome}</td>
           <td>${a.datahora}</td>
           <td>${a.tamanho} KB</td>
           <td>
-            <audio controls preload="none" style="width:180px">
-              <source src="/media/${encodeURIComponent(a.path.replace(/^.*media_drive[\\/]/, ''))}" type="audio/mpeg">
-              Seu navegador não suporta áudio.
+            <audio controls preload="none">
+              <source src="{{ url_for('radio.servir_audio', subpath='__REPLACE__') }}"
+                      type="audio/mpeg">
             </audio>
           </td>
           <td>
-            <a href="/radio/${radioKey}/recortar?path=${encodeURIComponent(a.path)}"
-               class="btn btn-outline-danger btn-sm">
+            <a href="{{ url_for('radio.recortar_audio', radio_key=radio.key) }}?subpath=__REPLACE__"
+               class="btn btn-outline-secondary btn-sm">
               <i class="bi bi-scissors"></i> Recortar
             </a>
           </td>
         `;
+        // substitui marcador __REPLACE__ pelo subpath real do JSON
+        row.innerHTML = row.innerHTML.replaceAll("__REPLACE__", a.subpath);
         tbody.appendChild(row);
       });
 
-      // Paginação
+      // Paginação (mantém a tua lógica atual)
       const total = dataJson.total;
-      const atual = dataJson.pagina_atual;
-      const totalPag = dataJson.total_paginas;
+      const perPage = dataJson.per_page;
+      const totalPag = Math.ceil(total / perPage);
+      const atual = dataJson.page;
       pagDiv.innerHTML = "";
       if (totalPag > 1) {
         for (let i = 1; i <= totalPag; i++) {
@@ -118,21 +123,21 @@ document.addEventListener("DOMContentLoaded", () => {
           pagDiv.appendChild(btn);
         }
       }
-
-      console.log(`🎧 ${dataJson.audios.length} áudios carregados (página ${atual}/${totalPag})`);
     } catch (err) {
       console.error("Erro ao carregar áudios:", err);
       tbody.innerHTML = `<tr><td colspan="5" class="text-danger text-center">Erro ao carregar áudios.</td></tr>`;
     }
   }
 
-  // Recarrega com o filtro
+  // 📅 Submissão do filtro
   form.addEventListener("submit", ev => {
     ev.preventDefault();
     carregarAudios();
   });
 
+  // 🚀 Carrega automaticamente os áudios do dia
   carregarAudios();
 });
 </script>
+
 {% endblock %}
